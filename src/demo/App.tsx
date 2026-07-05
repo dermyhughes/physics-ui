@@ -1,22 +1,23 @@
 import { useState } from 'react';
 import {
-  Bumper,
   Button,
   Card,
   Checkbox,
   Conveyor,
   Crane,
   Input,
-  Magnet,
   Modal,
   PartsBin,
+  PhysicsExempt,
   PhysicsText,
   PhysicsWorld,
+  ProgressBar,
   Radio,
   RadioGroup,
   Select,
   Slider,
   Stepper,
+  Tabs,
   Toaster,
   Toggle,
   toast,
@@ -51,7 +52,7 @@ function Playground() {
 
   // Machinery floor state
   const [psi, setPsi] = useState(3);
-  const [magnetOn, setMagnetOn] = useState(false);
+  const [quota, setQuota] = useState(55);
   const [terms, setTerms] = useState(false);
   const [crateFragile, setCrateFragile] = useState(true);
   const [crateUpright, setCrateUpright] = useState(false);
@@ -90,6 +91,202 @@ function Playground() {
     }
   };
 
+  const intakeFloor = (
+    <main className="shop-floor">
+      <section className="shop-bench" aria-label="Operator intake form">
+        <div className="shop-bench__head">
+          <PhysicsText as="h2" className="shop-bench__title">
+            Operator Intake
+          </PhysicsText>
+          <span className="shop-fig">FIG. 1 — STANDARD BORING FORM</span>
+        </div>
+
+        <div className="shop-bench__grid">
+          <Input
+            label="Full name"
+            value={name}
+            onChange={setName}
+            placeholder="e.g. R. Goldberg"
+            hint="shake the field to empty it"
+            autoComplete="off"
+          />
+          <Input
+            label="Callsign"
+            value={callsign}
+            onChange={setCallsign}
+            placeholder="PINBALL-01"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="shop-bench__grid">
+          <Select
+            label="Department"
+            value={department}
+            onChange={(v) => setDepartment(v)}
+            placeholder="Assign me anywhere"
+            options={[
+              { value: 'ballistics', label: 'Ballistics' },
+              { value: 'pendulums', label: 'Pendulums' },
+              { value: 'springs', label: 'Springs & Dampers' },
+              { value: 'custodial', label: 'Custodial (janitor unit)' },
+            ]}
+          />
+          <Slider label="Max torque" unit=" Nm" min={0} max={100} step={5} value={torque} onChange={setTorque} />
+        </div>
+
+        <div className="shop-bench__grid">
+          <RadioGroup name="shift" label="Shift — the dot is a brass ball" value={shift} onChange={setShift}>
+            <Radio value="day">Day shift</Radio>
+            <Radio value="swing">Swing shift</Radio>
+            <Radio value="graveyard">Graveyard</Radio>
+          </RadioGroup>
+
+          <div className="shop-checks">
+            <span className="tmbl-field-label">Certifications</span>
+            <Checkbox checked={union} onChange={setUnion}>
+              Union member, Local 404
+            </Checkbox>
+            <Checkbox checked={goggles} onChange={setGoggles}>
+              Safety goggles fitted
+            </Checkbox>
+          </div>
+        </div>
+
+        <div className="shop-bench__submit">
+          <Button
+            size="lg"
+            onClick={() => {
+              setSubmitted(true);
+              toast('Application received — lowering paperwork', 'success');
+            }}
+          >
+            Submit application
+          </Button>
+          <span className="shop-fine-print">pressing this shoves everything nearby. sorry.</span>
+        </div>
+      </section>
+
+      <aside className="shop-shelf">
+        <Card title="Notice" material="glass">
+          <p className="shop-copy">
+            This notice is printed on <strong>glass</strong>. Throw something
+            at it — a brass ball, a steel nut, this sentence — and it will
+            shatter. Management accepts no liability.
+          </p>
+        </Card>
+
+        <Card title="Operating manual" material="wood">
+          <ul className="shop-manual">
+            <li>Grab any component. Throw it.</li>
+            <li>Pull hard to shear a part off its mounts — one bolt left and it dangles.</li>
+            <li>Change a radio: the old ball drops out. Catch it in another dial to select it.</li>
+            <li>Drop something heavy on a button to press it physically.</li>
+            <li>Shake a filled text field to spill the letters.</li>
+            <li>Visit Floor 2 for the janitor crane, the pressure gauge and the magnetic recall button.</li>
+          </ul>
+        </Card>
+      </aside>
+    </main>
+  );
+
+  const machineryFloor = (
+    <main className="shop-floor shop-floor--machinery">
+      <section className="shop-column">
+        <Card title="Terms & conditions" material="wood" vehicle className="shop-terms">
+          <PhysicsText as="p" setting="loose" className="shop-terms__text">
+            The undersigned operator agrees that all interface components are
+            supplied with mass, momentum and a two-bolt mounting warranty
+            which is void the moment anybody touches anything. Words in this
+            agreement are set in weak letterpress glue and constitute load
+            bearing typography. Management is not responsible for clauses that
+            fall off, roll under the conveyor, or are collected by the janitor
+            unit and filed as scrap.
+          </PhysicsText>
+          <PhysicsText as="p" setting="loose" className="shop-terms__text">
+            In the event of a dispute the shop magnet shall be consulted and
+            its attraction considered legally binding. Overinflated gauges
+            burst at the operator's own risk. This paragraph will not survive
+            a direct hit and everyone involved knows it.
+          </PhysicsText>
+          <Checkbox
+            checked={terms}
+            onChange={(v) => {
+              setTerms(v);
+              if (v) toast('Terms accepted. Legally binding, allegedly.', 'info');
+            }}
+          >
+            I read the above while it was still attached
+          </Checkbox>
+        </Card>
+
+        <Card title="Shipping crate" material="wood" vehicle className="shop-crate">
+          <p className="shop-crate__note">
+            VEHICLE — contents are bolted to the crate, not the page. Drag
+            the crate and throw it: everything rides along. Or tear the
+            controls off it one by one.
+          </p>
+          <div className="shop-crate__row">
+            <Checkbox checked={crateFragile} onChange={setCrateFragile}>
+              Fragile
+            </Checkbox>
+            <Checkbox checked={crateUpright} onChange={setCrateUpright}>
+              This way up
+            </Checkbox>
+            <Button size="sm" variant="secondary" onClick={() => {}}>
+              Inspect
+            </Button>
+          </div>
+        </Card>
+      </section>
+
+      <section className="shop-column">
+        <div className="shop-gauges">
+          <Stepper
+            label="Tank pressure"
+            unit="PSI"
+            min={0}
+            max={8}
+            value={psi}
+            onChange={setPsi}
+            onBurst={() => toast('Pressure vessel failure. Refitting diaphragm.', 'warning')}
+          />
+          <Button size="sm" variant="secondary" magnetic>
+            Recall parts (hold)
+          </Button>
+          <div className="shop-quota">
+            <ProgressBar
+              label="Daily quota"
+              value={quota}
+              max={100}
+              onOverflow={() => toast('Quota met. Surplus directed to floor.', 'success')}
+            />
+            <Button size="sm" variant="secondary" onClick={() => setQuota((q) => Math.min(100, q + 15))}>
+              Log output +15%
+            </Button>
+          </div>
+          <p className="shop-gauges__note">
+            The gauge inflates as you step it up — past 8 PSI it bursts.
+            HOLD the recall button and it becomes an electromagnet: every
+            loose metal part in the shop comes to it. The quota bar fills
+            with bearings, overflows at 100%, and spills if not kept level.
+          </p>
+        </div>
+
+        <div className="shop-crane-zone">
+          <Crane auto dropAt={0.07} />
+          <div className="shop-crane-zone__floor">
+            <PartsBin label="Scrap" />
+            <span className="shop-fine-print">
+              the janitor grabs whatever is lying around and files it in the
+              bin. the belt delivers; drop a part to give it something to do.
+            </span>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+
   return (
     <>
       <div className="shop-blueprint" aria-hidden="true" />
@@ -103,24 +300,6 @@ function Playground() {
             A design system with consequences — every component is a rigid body.
           </PhysicsText>
         </div>
-        <nav className="shop-tabs" aria-label="Shop floors">
-          <Button
-            variant="secondary"
-            size="sm"
-            className={floor === 'intake' ? 'shop-tab shop-tab--active' : 'shop-tab'}
-            onClick={() => setFloor('intake')}
-          >
-            Fl. 1 — Intake
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className={floor === 'machinery' ? 'shop-tab shop-tab--active' : 'shop-tab'}
-            onClick={() => setFloor('machinery')}
-          >
-            Fl. 2 — Machinery
-          </Button>
-        </nav>
         <div className="shop-controls">
           <Toggle checked={zeroG} onChange={(v) => { setZeroG(v); setGravity(v ? 0.05 : 1); }}>
             Zero-G
@@ -131,200 +310,29 @@ function Playground() {
           <Button variant="secondary" size="sm" onClick={dropPart}>
             Drop part
           </Button>
-          <Button variant="danger" size="sm" onClick={resetMachine}>
-            Reset machine
-          </Button>
+          {/* The escape hatch is exempt from physics: it can't be torn off,
+              thrown, or pressed by falling debris. Somebody has to be the adult. */}
+          <PhysicsExempt>
+            <Button variant="danger" size="sm" onClick={resetMachine}>
+              Reset machine
+            </Button>
+          </PhysicsExempt>
+        </div>
+        <div className="shop-toaster">
+          <Toaster />
         </div>
       </header>
 
-      <div className="shop-toaster">
-        <Toaster />
-      </div>
-
-      {floor === 'intake' ? (
-        <main className="shop-floor">
-          <section className="shop-bench" aria-label="Operator intake form">
-            <div className="shop-bench__head">
-              <PhysicsText as="h2" className="shop-bench__title">
-                Operator Intake
-              </PhysicsText>
-              <span className="shop-fig">FIG. 1 — STANDARD BORING FORM</span>
-            </div>
-
-            <div className="shop-bench__grid">
-              <Input
-                label="Full name"
-                value={name}
-                onChange={setName}
-                placeholder="e.g. R. Goldberg"
-                hint="shake the field to empty it"
-                autoComplete="off"
-              />
-              <Input
-                label="Callsign"
-                value={callsign}
-                onChange={setCallsign}
-                placeholder="PINBALL-01"
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="shop-bench__grid">
-              <Select
-                label="Department"
-                value={department}
-                onChange={(v) => setDepartment(v)}
-                placeholder="Assign me anywhere"
-                options={[
-                  { value: 'ballistics', label: 'Ballistics' },
-                  { value: 'pendulums', label: 'Pendulums' },
-                  { value: 'springs', label: 'Springs & Dampers' },
-                  { value: 'custodial', label: 'Custodial (janitor unit)' },
-                ]}
-              />
-              <Slider label="Max torque" unit=" Nm" min={0} max={100} step={5} value={torque} onChange={setTorque} />
-            </div>
-
-            <div className="shop-bench__grid">
-              <RadioGroup name="shift" label="Shift — the dot is a brass ball" value={shift} onChange={setShift}>
-                <Radio value="day">Day shift</Radio>
-                <Radio value="swing">Swing shift</Radio>
-                <Radio value="graveyard">Graveyard</Radio>
-              </RadioGroup>
-
-              <div className="shop-checks">
-                <span className="tmbl-field-label">Certifications</span>
-                <Checkbox checked={union} onChange={setUnion}>
-                  Union member, Local 404
-                </Checkbox>
-                <Checkbox checked={goggles} onChange={setGoggles}>
-                  Safety goggles fitted
-                </Checkbox>
-              </div>
-            </div>
-
-            <div className="shop-bench__submit">
-              <Button
-                size="lg"
-                onClick={() => {
-                  setSubmitted(true);
-                  toast('Application received — lowering paperwork', 'success');
-                }}
-              >
-                Submit application
-              </Button>
-              <span className="shop-fine-print">pressing this shoves everything nearby. sorry.</span>
-            </div>
-          </section>
-
-          <aside className="shop-shelf">
-            <Card title="Notice" material="glass">
-              <p className="shop-copy">
-                This notice is printed on <strong>glass</strong>. Throw something
-                at it — a brass ball, a steel nut, this sentence — and it will
-                shatter. Management accepts no liability.
-              </p>
-            </Card>
-
-            <Card title="Operating manual" material="wood">
-              <ul className="shop-manual">
-                <li>Grab any component. Throw it.</li>
-                <li>Pull hard to shear a part off its mounts — one bolt left and it dangles.</li>
-                <li>Change a radio: the old ball drops out. Catch it in another dial to select it.</li>
-                <li>Drop something heavy on a button to press it physically.</li>
-                <li>Shake a filled text field to spill the letters.</li>
-                <li>Visit Floor 2 for the crane, the magnet and the pressure gauge.</li>
-              </ul>
-            </Card>
-
-            <div className="shop-bumpers">
-              <Bumper size={62} />
-              <Bumper size={48} kick={16} />
-            </div>
-          </aside>
-        </main>
-      ) : (
-        <main className="shop-floor shop-floor--machinery">
-          <section className="shop-column">
-            <Card title="Terms & conditions" material="wood" vehicle className="shop-terms">
-              <PhysicsText as="p" setting="loose" className="shop-terms__text">
-                The undersigned operator agrees that all interface components are
-                supplied with mass, momentum and a two-bolt mounting warranty
-                which is void the moment anybody touches anything. Words in this
-                agreement are set in weak letterpress glue and constitute load
-                bearing typography. Management is not responsible for clauses
-                that fall off, roll under the conveyor, or are collected by the
-                janitor unit and filed as scrap.
-              </PhysicsText>
-              <PhysicsText as="p" setting="loose" className="shop-terms__text">
-                In the event of a dispute the shop magnet shall be consulted and
-                its attraction considered legally binding. Overinflated gauges
-                burst at the operator's own risk. This paragraph will not
-                survive a direct hit and everyone involved knows it.
-              </PhysicsText>
-              <Checkbox
-                checked={terms}
-                onChange={(v) => {
-                  setTerms(v);
-                  if (v) toast('Terms accepted. Legally binding, allegedly.', 'info');
-                }}
-              >
-                I read the above while it was still attached
-              </Checkbox>
-            </Card>
-
-            <Card title="Shipping crate" material="wood" vehicle className="shop-crate">
-              <p className="shop-crate__note">
-                VEHICLE — contents are bolted to the crate, not the page. Drag
-                the crate and throw it: everything rides along. Or tear the
-                controls off it one by one.
-              </p>
-              <div className="shop-crate__row">
-                <Checkbox checked={crateFragile} onChange={setCrateFragile}>
-                  Fragile
-                </Checkbox>
-                <Checkbox checked={crateUpright} onChange={setCrateUpright}>
-                  This way up
-                </Checkbox>
-                <Button size="sm" variant="secondary" onClick={() => {}}>
-                  Inspect
-                </Button>
-              </div>
-            </Card>
-          </section>
-
-          <section className="shop-column">
-            <div className="shop-gauges">
-              <Stepper
-                label="Tank pressure"
-                unit="PSI"
-                min={0}
-                max={8}
-                value={psi}
-                onChange={setPsi}
-                onBurst={() => toast('Pressure vessel failure. Refitting diaphragm.', 'warning')}
-              />
-              <Magnet on={magnetOn} onChange={setMagnetOn} />
-              <p className="shop-gauges__note">
-                The gauge inflates as you step it up — past 8 PSI it bursts.
-                The magnet is bulk-select: switch it on and every loose metal
-                part in the shop comes to it. Tear it off and carry your haul.
-              </p>
-            </div>
-
-            <div className="shop-crane-zone">
-              <Crane auto dropAt={0.07} />
-              <div className="shop-crane-zone__floor">
-                <PartsBin label="Scrap" />
-                <span className="shop-fine-print">
-                  the janitor grabs whatever is lying around and files it in the
-                  bin. the belt delivers; drop a part to give it something to do.
-                </span>
-              </div>
-            </div>
-          </section>
-        </main>
-      )}
+      <Tabs
+        label="Shop floors"
+        className="shop-floors"
+        value={floor}
+        onChange={(id) => setFloor(id as Floor)}
+        tabs={[
+          { id: 'intake', label: 'Fl. 1 — Intake', content: intakeFloor },
+          { id: 'machinery', label: 'Fl. 2 — Machinery', content: machineryFloor },
+        ]}
+      />
 
       <div className="shop-belt">
         <Conveyor speed={3.2} />

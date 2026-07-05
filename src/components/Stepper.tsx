@@ -29,6 +29,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, u
   const [burst, setBurst] = useState(false);
   const { spawnLoose, engine } = useWorld();
   const burstTimer = useRef<ReturnType<typeof setTimeout>>();
+  const rowRef = useRef<HTMLDivElement>(null);
 
   const fill = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
   const fillRef = useRef(fill);
@@ -40,6 +41,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, u
     kind: 'stepper',
     material: 'rubber',
     mountBreakAt: 120,
+    hitboxRef: rowRef,
     onImpact: (info) => {
       // An over-inflated balloon does not appreciate being hit.
       if (fillRef.current > 0.7 && info.speed > 9) pop();
@@ -116,7 +118,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, u
   return (
     <div ref={ref} className="tmbl-stepper" data-burst={burst || undefined}>
       <span className="tmbl-field-label">{label}</span>
-      <div className="tmbl-stepper__row">
+      <div ref={rowRef} className="tmbl-stepper__row">
         <button
           type="button"
           className="tmbl-stepper__btn"

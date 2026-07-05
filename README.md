@@ -102,7 +102,9 @@ drag, collision routing and the loose-parts layer. Components must live inside i
 | `Select` | `aria-haspopup` listbox | **A hydraulic press.** The steel options panel is driven down on two pistons and physically shoves the UI beneath it aside; picking releases the pistons and the unwanted menu falls out of the interface. Drag the trigger and the open menu swings along |
 | `Slider` | `role="slider"` | The thumb is a brass ball in the groove. Drag it like any slider — but knock the component and the ball sloshes; tilt it and your setting rolls downhill. A slider dangling off one bolt pegs itself |
 | `Stepper` | `role="spinbutton"` | Inflates with every increment, grows buoyant (strains upward against its bolts; floats away if torn off), and **bursts** past max — scraps, bang, value slams to min. `onBurst` hook |
-| `Toaster` / `toast()` | `aria-live` region | Notifications are paperwork: they flutter down onto a ledge and **pile up until dismissed** (× button), or flick them off — the janitor files them as scrap eventually |
+| `Toaster` / `toast()` | `aria-live` region | Arrives like a normal toast: stacked, legible, on top of everything. The physics is **deferred** — a toast only becomes a falling object when you dismiss it (×) or a new arrival knocks the oldest off the full ledge |
+| `Tabs` | `role="tablist"` (arrow keys) | The tab bar is plain navigation chrome — no physics on wayfinding. The panel swap is the twist: the outgoing panel is **packed into a crate and winched off-screen to storage** |
+| `ProgressBar` | `role="progressbar"` | Filled with actual ball bearings. At 100% it **overflows** — surplus dribbles over the brim (`onOverflow`). Tip it past ~25° and the whole quota spills; level it to recover |
 | `Modal` | `role="dialog"` | Lowered from ceiling on two ropes; close = cut ropes; contents are `PhysicsExempt` passengers |
 | `PhysicsText` | `h1–h3/p/span/label` | Each word is a body; `setting="loose"` scatters easily |
 | `Card` (+`vehicle`) | `<section>` | With `vehicle`, children bolt to the card instead of the page: throw the card and its controls ride along, or tear them off it one by one |
@@ -154,7 +156,9 @@ function Gauge() {
 `useWorld()` exposes the machine room: `spawnLoose` (balls, debris, anything),
 `getLoose(kind)`, `setGravity`, `resetMachine`, `onFrame`, the raw Matter
 `engine`, and the registry of every body. `PhysicsExempt` marks a subtree as
-riding inside another body (that's how modal contents work).
+riding inside another body (that's how modal contents work) — it also makes
+any component **inert**: the demo wraps its "Reset machine" button in it so
+the escape hatch can never be torn off, thrown, or pressed by falling debris.
 
 ## How it holds together
 
@@ -184,13 +188,22 @@ riding inside another body (that's how modal contents work).
   problem.
 - Open a Select above your checkboxes and enjoy the physical layout shift.
 
+## Responsiveness
+
+The demo renders as a normal, well-behaved page at any viewport — the world
+grows with its content (the container is observed, walls and layout homes
+re-seat on any resize or tab switch), the header wraps, floors stack on
+narrow screens, and nothing is displaced on initial load. Resizing a live,
+already-wrecked machine can of course cause collisions; that's gravity's
+department.
+
 ## Known limits / future work
 
 - Vehicles don't nest (a vehicle card inside another vehicle card falls back
   to page mounting, with a console warning).
 - The crane chases conveyor-borne targets slower than the belt moves; it
   misses a lot. The union has been notified.
-- Select has no arrow-key option navigation yet (click/Enter/Escape only).
-- Mobile works (pointer events), but the demo layout is desktop-first.
+- Touch dragging works, but the world blocks touch scrolling inside it —
+  the demo remains desktop-first.
 
 *Filed under: exploration of interaction and delight. Handle with gloves.*

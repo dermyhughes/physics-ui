@@ -1,3 +1,4 @@
+import Matter from 'matter-js';
 import {
   createContext,
   useContext,
@@ -104,20 +105,30 @@ export function Radio({ value, children, disabled }: RadioProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checked]);
 
-  // Empty dial catches any slow loose ball that rolls into it.
+  // An empty dial is gently magnetic: it guides stray balls the last few
+  // centimetres home, then catches any slow ball that arrives.
   useFrame(() => {
     if (checked || disabled) return;
     const now = performance.now();
-    if (now - lastCatch.current < 400) return;
     const c = wellCenter();
     if (!c) return;
     for (const ball of getLoose('radio-ball')) {
       const born = (ball.data?.bornAt as number) ?? 0;
       if (now - born < 700) continue;
-      const dx = ball.body.position.x - c.x;
-      const dy = ball.body.position.y - c.y;
+      const dx = c.x - ball.body.position.x;
+      const dy = c.y - ball.body.position.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 80 * 80 && d2 > 1) {
+        const d = Math.sqrt(d2);
+        const pull = 0.0006 * ball.body.mass * (1 - d / 80);
+        Matter.Sleeping.set(ball.body, false);
+        Matter.Body.applyForce(ball.body, ball.body.position, {
+          x: (dx / d) * pull,
+          y: (dy / d) * pull,
+        });
+      }
       const speed = Math.hypot(ball.body.velocity.x, ball.body.velocity.y);
-      if (dx * dx + dy * dy < 20 * 20 && speed < 4) {
+      if (d2 < 20 * 20 && speed < 4 && now - lastCatch.current > 400) {
         lastCatch.current = now;
         removeLoose(String(ball.data?.looseId ?? ''));
         playEffect('pop', 1);

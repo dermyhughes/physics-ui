@@ -15,7 +15,9 @@ import {
  * lays out like any other); physics is applied as a transform delta from its
  * layout home. Returns a ref to attach plus an api for applying impulses.
  */
-export function usePhysicsBody<T extends HTMLElement>(opts: FlowBodyOptions) {
+export function usePhysicsBody<T extends HTMLElement>(
+  opts: FlowBodyOptions & { hitboxRef?: React.RefObject<HTMLElement | null> },
+) {
   const ref = useRef<T>(null);
   const { registerFlow, registry, engine } = useWorld();
   const exempt = usePhysicsExempt();
@@ -39,6 +41,7 @@ export function usePhysicsBody<T extends HTMLElement>(opts: FlowBodyOptions) {
       cleanup = registerFlow(el, {
         ...opts,
         parent: vehicle?.entryRef.current ?? null,
+        hitbox: opts.hitboxRef?.current ?? null,
         onImpact: (info) => impactRef.current?.(info),
         onMountsChange: (n) => mountsRef.current?.(n),
       });

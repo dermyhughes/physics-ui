@@ -61,6 +61,9 @@ function ModalInner({ onClose, title, children }: ModalProps) {
       x: spawnX,
       y: spawnY,
       vy: 4,
+      // Own layer: the drop-in never clips the header on its way down. It
+      // can still catch a dismissed toast on its roof.
+      overlay: true,
     };
     const cleanup = registerLooseEl(spec, el);
     let entry: BodyEntry | null = null;

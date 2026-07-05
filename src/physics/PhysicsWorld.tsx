@@ -53,6 +53,8 @@ export interface BodyEntry {
   mountBreakAt: number;
   /** Vehicle this part rides: mounts anchor to the parent body, not the world. */
   parent?: BodyEntry | null;
+  /** If set, the body was sized from this inner element, not from el. */
+  hitboxEl?: HTMLElement | null;
   onImpact?: (info: ImpactInfo) => void;
   onMountsChange?: (remaining: number) => void;
   /** Arbitrary component payload (e.g. which radio value a loose ball holds). */
@@ -79,6 +81,12 @@ export interface FlowBodyOptions {
   bodyOverrides?: Matter.IBodyDefinition;
   /** Bolt this part to a vehicle body instead of the page (set via VehicleCtx). */
   parent?: BodyEntry | null;
+  /**
+   * Size the collision body from this inner element instead of the whole
+   * component — e.g. an Input collides as its field, not its label's
+   * invisible bounding box. The whole element still moves together.
+   */
+  hitbox?: HTMLElement | null;
 }
 
 export interface LooseSpec {
@@ -101,6 +109,11 @@ export interface LooseSpec {
   debris?: boolean;
   /** Custom collision mask (e.g. machinery that must not knock the UI). */
   maskOverride?: number;
+  /**
+   * Overlay layer (modals, dismissed toasts): collides only with other
+   * overlay bodies, so the drop-in delight is never cut short by the header.
+   */
+  overlay?: boolean;
   /** Render a × button on the part (used by toasts). */
   dismissible?: boolean;
   data?: Record<string, unknown>;
@@ -119,6 +132,8 @@ interface WorldCtx {
   onFrame: (cb: () => void) => () => void;
   getLoose: (kind: string) => BodyEntry[];
   resetMachine: () => void;
+  /** Subscribe to machine resets (components clear spilled/burst states). */
+  onMachineReset: (cb: () => void) => () => void;
   setGravity: (scale: number) => void;
   gravity: number;
   setSound: (on: boolean) => void;
@@ -210,14 +225,21 @@ export function PhysicsWorld({
     engine: Matter.Engine;
     registry: Map<number, BodyEntry>;
     frameSubs: Set<() => void>;
+    resetSubs: Set<() => void>;
     walls: Matter.Body[];
   }>();
   if (!stable.current) {
     const engine = Matter.Engine.create({ enableSleeping: true });
     engine.gravity.y = 1;
-    stable.current = { engine, registry: new Map(), frameSubs: new Set(), walls: [] };
+    stable.current = {
+      engine,
+      registry: new Map(),
+      frameSubs: new Set(),
+      resetSubs: new Set(),
+      walls: [],
+    };
   }
-  const { engine, registry, frameSubs } = stable.current;
+  const { engine, registry, frameSubs, resetSubs } = stable.current;
 
   // ---------------------------------------------------------------- walls
   useEffect(() => {
@@ -262,8 +284,15 @@ export function PhysicsWorld({
         const prevTransforms = flow.map((e) => e.el.style.transform);
         flow.forEach((e) => (e.el.style.transform = 'none'));
         flow.forEach((entry) => {
-          const r = entry.el.getBoundingClientRect();
+          const hb = entry.hitboxEl ?? entry.el;
+          const r = hb.getBoundingClientRect();
           entry.home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+          if (entry.hitboxEl) {
+            const er = entry.el.getBoundingClientRect();
+            entry.el.style.transformOrigin = `${r.left - er.left + r.width / 2}px ${
+              r.top - er.top + r.height / 2
+            }px`;
+          }
         });
         flow.forEach((entry, idx) => {
           entry.el.style.transform = prevTransforms[idx];
@@ -283,7 +312,14 @@ export function PhysicsWorld({
       });
     };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    // The container's own size also changes without a window resize (tab
+    // switches, responsive reflow): watch it and re-seat the machine.
+    const ro = new ResizeObserver(onResize);
+    ro.observe(container);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      ro.disconnect();
+    };
   }, [engine, registry]);
 
   // ---------------------------------------------------------------- loop
@@ -422,23 +458,6 @@ export function PhysicsWorld({
         const a = registry.get(bodyA.id) ?? null;
         const b = registry.get(bodyB.id) ?? null;
 
-        // Bumpers kick.
-        for (const [bumper, other] of [
-          [bodyA, bodyB],
-          [bodyB, bodyA],
-        ] as const) {
-          const kick = (bumper.plugin as any)?.tumbleBumper;
-          if (typeof kick === 'number' && !other.isStatic) {
-            const dir = Matter.Vector.normalise(
-              Matter.Vector.sub(other.position, bumper.position),
-            );
-            Matter.Body.setVelocity(other, {
-              x: dir.x * kick + other.velocity.x * 0.25,
-              y: dir.y * kick + other.velocity.y * 0.25,
-            });
-          }
-        }
-
         if (a?.onImpact) a.onImpact({ speed, other: b, self: a });
         if (b?.onImpact) b.onImpact({ speed, other: a, self: b });
 
@@ -561,7 +580,15 @@ export function PhysicsWorld({
     const registerFlow = (el: HTMLElement, opts: FlowBodyOptions) => {
       const container = containerRef.current!;
       const crect = container.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
+      const hb = opts.hitbox ?? el;
+      const r = hb.getBoundingClientRect();
+      if (hb !== el) {
+        // The body lives at the hitbox centre; rotate the element around it.
+        const er = el.getBoundingClientRect();
+        el.style.transformOrigin = `${r.left - er.left + r.width / 2}px ${
+          r.top - er.top + r.height / 2
+        }px`;
+      }
 
       let parent = opts.parent ?? null;
       if (parent?.parent) {
@@ -691,6 +718,7 @@ export function PhysicsWorld({
         mountStiffness: stiffness,
         mountBreakAt: breakAt,
         parent,
+        hitboxEl: hb !== el ? hb : null,
         onImpact: opts.onImpact,
         onMountsChange: opts.onMountsChange,
         data: opts.data,
@@ -728,8 +756,9 @@ export function PhysicsWorld({
         friction: mat.friction,
         frictionAir: mat.frictionAir,
         label: spec.kind,
-        collisionFilter:
-          spec.maskOverride != null
+        collisionFilter: spec.overlay
+          ? { category: CATEGORY.OVERLAY, mask: CATEGORY.OVERLAY }
+          : spec.maskOverride != null
             ? { category: CATEGORY.LOOSE, mask: spec.maskOverride }
             : spec.debris
               ? { category: CATEGORY.DEBRIS, mask: CATEGORY.WORLD | CATEGORY.DEBRIS }
@@ -760,6 +789,7 @@ export function PhysicsWorld({
         mountCount: 0,
         mountStiffness: 0,
         mountBreakAt: 0,
+        hitboxEl: null,
         onImpact: spec.onImpact,
         data: { ...spec.data, looseId: spec.id },
       };
@@ -843,6 +873,7 @@ export function PhysicsWorld({
         entry.el.dataset.mounts = String(entry.mounts.length);
         entry.onMountsChange?.(entry.mounts.length);
       });
+      stable.current!.resetSubs.forEach((cb) => cb());
     };
 
     return {
@@ -857,6 +888,10 @@ export function PhysicsWorld({
       onFrame: (cb) => {
         frameSubs.add(cb);
         return () => frameSubs.delete(cb);
+      },
+      onMachineReset: (cb) => {
+        resetSubs.add(cb);
+        return () => resetSubs.delete(cb);
       },
       getLoose: (kind) => [...registry.values()].filter((e) => e.mode === 'free' && e.kind === kind),
       resetMachine,

@@ -10,8 +10,11 @@ html,
 body,
 #root {
   margin: 0;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+}
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {
@@ -24,7 +27,7 @@ body {
 
 .shop {
   width: 100%;
-  height: 100%;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   cursor: grab;
@@ -49,7 +52,8 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--tmbl-space-6);
+  flex-wrap: wrap;
+  gap: var(--tmbl-space-4) var(--tmbl-space-6);
   padding: var(--tmbl-space-5) var(--tmbl-space-7) var(--tmbl-space-4);
   border-bottom: 2px solid var(--tmbl-color-line);
   position: relative;
@@ -59,7 +63,7 @@ body {
 .shop-logo {
   margin: 0;
   font-family: var(--tmbl-font-display);
-  font-size: var(--tmbl-text-2xl);
+  font-size: clamp(1.9rem, 1.1rem + 2.6vw, 3.25rem);
   font-weight: 800;
   font-stretch: 90%;
   letter-spacing: -0.02em;
@@ -199,13 +203,6 @@ body {
   color: var(--tmbl-orange-500);
 }
 
-.shop-bumpers {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: var(--tmbl-space-2) var(--tmbl-space-6);
-}
-
 /* ------------------------------------------------ belt & footer */
 .shop-belt {
   /* Belt stops short of the right wall: it dumps its cargo on the floor
@@ -241,30 +238,47 @@ body {
 }
 
 /* narrow screens: stack */
-@media (max-width: 980px) {
-  .shop-floor {
+@media (max-width: 1080px) {
+  .shop-floor,
+  .shop-floor--machinery {
     grid-template-columns: 1fr;
-    overflow: hidden;
   }
+  .shop-floor {
+    padding: var(--tmbl-space-5);
+    gap: var(--tmbl-space-6);
+  }
+  .shop-header {
+    padding: var(--tmbl-space-4) var(--tmbl-space-5);
+  }
+  .shop-toaster {
+    right: var(--tmbl-space-5);
+  }
+  .shop-belt {
+    padding-left: var(--tmbl-space-5);
+  }
+  .shop-footer {
+    flex-wrap: wrap;
+    padding-left: var(--tmbl-space-5);
+    padding-right: var(--tmbl-space-5);
+  }
+}
+@media (max-width: 640px) {
   .shop-bench__grid {
     grid-template-columns: 1fr;
   }
+  .shop-bench {
+    padding: var(--tmbl-space-5);
+  }
+  .shop-controls {
+    gap: var(--tmbl-space-3);
+    flex-wrap: wrap;
+  }
+  .shop-gauges {
+    gap: var(--tmbl-space-4);
+  }
 }
 
-/* ------------------------------------------------ floor tabs */
-.shop-tabs {
-  display: flex;
-  gap: var(--tmbl-space-3);
-  padding-top: var(--tmbl-space-2);
-  flex: none;
-}
-.shop-tab .tmbl-button__cap {
-  color: var(--tmbl-color-text-muted);
-}
-.shop-tab--active .tmbl-button__cap {
-  background: linear-gradient(180deg, #f4693f, var(--tmbl-orange-500) 40%, var(--tmbl-orange-600)) !important;
-  color: var(--tmbl-color-action-contrast) !important;
-}
+/* ------------------------------------------------ floor tabs (Tabs component supplies its own skin) */
 
 /* ------------------------------------------------ machinery floor */
 .shop-floor--machinery {
@@ -339,10 +353,24 @@ body {
   padding-top: 96px; /* head-room for the claw to swing through */
 }
 
-/* ------------------------------------------------ toaster perch */
+/* ------------------------------------------------ toaster perch (rides the header, wraps with it) */
 .shop-toaster {
   position: absolute;
-  top: 86px;
+  bottom: -13px;
   right: 44px;
   z-index: var(--tmbl-z-machine);
+}
+.shop-toaster .tmbl-toaster {
+  width: min(264px, 56vw);
+}
+
+.shop-quota {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tmbl-space-3);
+  min-width: 220px;
+  flex: 1;
+}
+.shop-quota .tmbl-button {
+  align-self: flex-start;
 }

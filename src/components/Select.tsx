@@ -38,10 +38,13 @@ let selectCounter = 0;
  */
 export function Select({ label, value, onChange, options, placeholder = 'Chooseâ€¦' }: SelectProps) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { ref, entry } = usePhysicsBody<HTMLDivElement>({
     kind: 'select',
     material: 'wood',
     mountBreakAt: 100,
+    // Collide as the trigger box only, not the label above it.
+    hitboxRef: triggerRef,
   });
 
   const current = options.find((o) => o.value === value);
@@ -50,6 +53,7 @@ export function Select({ label, value, onChange, options, placeholder = 'Chooseâ
     <div ref={ref} className="tmbl-select" data-open={open || undefined}>
       <span className="tmbl-field-label">{label}</span>
       <button
+        ref={triggerRef}
         type="button"
         className="tmbl-select__trigger"
         aria-haspopup="listbox"
@@ -57,6 +61,13 @@ export function Select({ label, value, onChange, options, placeholder = 'Chooseâ
         onClick={() => {
           playEffect(open ? 'whoosh' : 'ratchet', 0.6);
           setOpen(!open);
+        }}
+        onKeyDown={(e) => {
+          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault();
+            playEffect('ratchet', 0.6);
+            setOpen(true);
+          }
         }}
       >
         <span className={current ? '' : 'tmbl-select__placeholder'}>
@@ -166,8 +177,31 @@ function SelectPanel({
       playEffect('ratchet', 0.9);
     }
 
+    // Focus lands on the selected (or first) option once the press is down.
+    const focusTimer = setTimeout(() => {
+      const target =
+        el.querySelector<HTMLButtonElement>('.tmbl-select__option[data-selected]') ??
+        el.querySelector<HTMLButtonElement>('.tmbl-select__option');
+      target?.focus();
+    }, 120);
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') release(false);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        const opts = [...el.querySelectorAll<HTMLButtonElement>('.tmbl-select__option')];
+        if (!opts.length) return;
+        const idx = opts.indexOf(document.activeElement as HTMLButtonElement);
+        const next =
+          e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? opts.length - 1
+              : e.key === 'ArrowDown'
+                ? Math.min(opts.length - 1, idx + 1)
+                : Math.max(0, idx - 1);
+        opts[next]?.focus();
+      }
     };
     const onClickAway = (e: MouseEvent) => {
       if (!el.contains(e.target as Node)) release(false);
@@ -177,6 +211,7 @@ function SelectPanel({
     const t = setTimeout(() => window.addEventListener('click', onClickAway, true), 0);
     return () => {
       clearTimeout(t);
+      clearTimeout(focusTimer);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('click', onClickAway, true);
       rig.current.chains.forEach((c) => Matter.Composite.remove(engine.world, c));

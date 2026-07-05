@@ -94,16 +94,6 @@ html.tmbl-dragging * {
   border: 0;
 }
 
-/* Bumper score pop */
-.tmbl-score-pop {
-  font-family: var(--tmbl-font-mono);
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--tmbl-orange-500);
-  text-shadow: 0 1px 0 var(--tmbl-paper-050);
-}
-
 /* Screen-reader-only native inputs */
 .tmbl-sr-only {
   position: absolute;

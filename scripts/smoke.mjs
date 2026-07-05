@@ -115,10 +115,8 @@ console.log('rubber scraps:', await page.locator('.tmbl-scrap').count());
 await page.waitForTimeout(1500);
 console.log('stepper value after burst:', await page.locator('.tmbl-stepper__balloon').getAttribute('aria-valuenow'));
 
-// Magnet on
-await page.locator('.tmbl-magnet input').dispatchEvent('click');
-await page.waitForTimeout(200);
-console.log('magnet on:', await page.locator('.tmbl-magnet[data-on]').count());
+// Magnetic recall button present
+console.log('magnetic button:', await page.locator('button:has-text("Recall parts")').count());
 
 // Let the janitor work on the scraps for a bit
 await page.locator('button:has-text("Drop part")').dispatchEvent('click');

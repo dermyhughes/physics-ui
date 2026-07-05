@@ -26,6 +26,8 @@ export function Input({ label, value, onChange, hint, className, ...rest }: Inpu
     kind: 'input',
     material: 'wood',
     mountBreakAt: 110,
+    // Collide as the field itself — the label above it is not a wall.
+    hitboxRef: inputRef,
   });
 
   const inputCenter = () => {

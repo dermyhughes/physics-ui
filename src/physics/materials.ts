@@ -83,5 +83,7 @@ export const CATEGORY = {
   PART: 0x0001, // mounted components
   LOOSE: 0x0002, // free-flying objects (balls, torn-off parts)
   DEBRIS: 0x0004, // shards, spilled letters — collide with world, not with parts
-  WORLD: 0x0008, // walls, floor, conveyors, bumpers
+  WORLD: 0x0008, // walls, floor, conveyors
+  /** Modals and toasts: their own layer, they only touch each other. */
+  OVERLAY: 0x0010,
 } as const;

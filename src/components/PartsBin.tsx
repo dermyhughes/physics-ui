@@ -38,7 +38,7 @@ export function PartsBin({ label = 'Scrap' }: PartsBinProps) {
       minY: ir.top - cr.top,
       maxY: ir.bottom - cr.top + 6,
     };
-    for (const kind of ['radio-ball', 'nut', 'tick', 'scrap', 'letter', 'shard', 'toast']) {
+    for (const kind of ['radio-ball', 'nut', 'tick', 'scrap', 'letter', 'shard']) {
       for (const part of getLoose(kind)) {
         if (UNCOLLECTIBLE.has(part.kind)) continue;
         const { x, y } = part.body.position;

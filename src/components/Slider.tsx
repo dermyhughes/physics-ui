@@ -43,6 +43,8 @@ export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, u
     kind: 'slider',
     material: 'wood',
     mountBreakAt: 100,
+    // The groove is the part; the label floats above it.
+    hitboxRef: trackRef,
   });
 
   // External value changes (controlled component) seat the ball directly

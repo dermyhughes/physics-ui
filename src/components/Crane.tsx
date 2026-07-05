@@ -16,7 +16,7 @@ export interface CraneProps {
 
 type CraneState = 'idle' | 'seek' | 'descend' | 'grab' | 'raise' | 'carry' | 'release' | 'return';
 
-const UNGRASPABLE = new Set(['claw', 'modal', 'score']);
+const UNGRASPABLE = new Set(['claw', 'modal', 'toast', 'select-panel']);
 const REST_LEN = 56;
 let craneCounter = 0;
 
@@ -49,6 +49,9 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
     stateSince: 0,
     cooldownUntil: 0,
     manualRequest: false,
+    // Targets it recently failed to grab — skip them for a while instead of
+    // trying the same impossible pick forever.
+    blacklist: new Map<number, number>(),
   });
 
   const go = (state: CraneState, note?: string) => {
@@ -159,7 +162,7 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
       if (s.state === 'descend' || s.state === 'grab' || s.state === 'carry') go('raise');
     }
 
-    const moveTrolley = (toX: number, speed = 3.6): boolean => {
+    const moveTrolley = (toX: number, speed = 5.5): boolean => {
       const clamped = Math.max(minX, Math.min(maxX, toX));
       const d = clamped - s.trolleyX;
       s.trolleyX += Math.abs(d) < speed ? d : Math.sign(d) * speed;
@@ -170,9 +173,14 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
       case 'idle': {
         const wants = s.manualRequest || (auto && now > s.cooldownUntil);
         if (wants) {
-          // Only chase what the rail can actually reach.
+          // Only chase what the rail can actually reach: within its span,
+          // below it, and not something it recently failed on.
           const candidates = graspables().filter(
-            (e) => e.body.position.x > minX - 60 && e.body.position.x < maxX + 60,
+            (e) =>
+              e.body.position.x > minX - 60 &&
+              e.body.position.x < maxX + 60 &&
+              e.body.position.y > railY + 40 &&
+              (s.blacklist.get(e.id) ?? 0) < now,
           );
           if (candidates.length) {
             // Lowest-lying part first: that's the one on the floor.
@@ -198,13 +206,13 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
       }
       case 'descend': {
         if (!target) break;
-        moveTrolley(target.body.position.x, 2.2);
-        s.rope.length = Math.min(maxLen, s.rope.length + 4);
+        moveTrolley(target.body.position.x, 4);
+        s.rope.length = Math.min(maxLen, s.rope.length + 6);
         const d = Math.hypot(
           s.claw.body.position.x - target.body.position.x,
           s.claw.body.position.y - target.body.position.y,
         );
-        if (d < Math.max(target.size.w, target.size.h) / 2 + 24) {
+        if (d < Math.max(target.size.w, target.size.h) / 2 + 34) {
           s.grip = Matter.Constraint.create({
             bodyA: s.claw.body,
             pointA: { x: 0, y: 10 },
@@ -217,7 +225,9 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
           if (clawElRef.current) clawElRef.current.dataset.holding = 'true';
           playEffect('pop', 0.7);
           go('grab', 'GRABBED');
-        } else if (s.rope.length >= maxLen && now - s.stateSince > 2600) {
+        } else if (s.rope.length >= maxLen && now - s.stateSince > 2200) {
+          if (s.targetId != null) s.blacklist.set(s.targetId, now + 12000);
+          dropGrip();
           go('raise', 'MISSED');
         }
         break;
@@ -227,7 +237,7 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
         break;
       }
       case 'raise': {
-        s.rope.length = Math.max(REST_LEN, s.rope.length - 5);
+        s.rope.length = Math.max(REST_LEN, s.rope.length - 6.5);
         if (s.rope.length <= REST_LEN) go(s.grip ? 'carry' : 'return', s.grip ? 'CARRYING' : 'RETURNING');
         break;
       }
@@ -239,7 +249,7 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
         if (now - s.stateSince > 260) {
           dropGrip();
           playEffect('whoosh', 0.5);
-          s.cooldownUntil = now + (auto ? 2200 : 600);
+          s.cooldownUntil = now + (auto ? 1400 : 500);
           go('return', 'RETURNING');
         }
         break;

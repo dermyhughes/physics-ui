@@ -1,6 +1,7 @@
 import Matter from 'matter-js';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { applyMagnetism } from '../physics/magnetism';
 import { playEffect } from '../physics/sound';
 
 export interface MagnetProps {
@@ -11,16 +12,10 @@ export interface MagnetProps {
   reach?: number;
 }
 
-const FERROUS = new Set(['steel', 'brass']);
-const IGNORED_KINDS = new Set(['claw', 'modal', 'score']);
-
 /**
- * An electromagnet dressed as a humble toggle chip — bulk-select, made
- * physical. Switch it on and every loose ferrous part in reach (brass balls,
- * steel nuts, torn-off steel buttons; the shop magnet does not care about
- * metallurgy) is dragged in and clings to it. Tear the magnet off its mounts
- * and carry it around like a wand: the collection follows. Dump your haul
- * over an empty radio dial to make a selection.
+ * The raw shop electromagnet (machinery tier), dressed as a toggle chip.
+ * For the same power inside a normal control, see `<Button magnetic>` —
+ * hold it down and it recalls every loose metal part in the shop.
  */
 export function Magnet({ on, onChange, label = 'Magno-collect', reach = 260 }: MagnetProps) {
   const { registry } = useWorld();
@@ -41,38 +36,10 @@ export function Magnet({ on, onChange, label = 'Magno-collect', reach = 260 }: M
       e.body.position,
       Matter.Vector.rotate({ x: 0, y: e.size.h * 0.42 }, e.body.angle),
     );
-    let reactX = 0;
-    let reactY = 0;
-    registry.forEach((t) => {
-      if (t === e || t.body.isStatic) return;
-      if (!FERROUS.has(t.material) || IGNORED_KINDS.has(t.kind)) return;
-      // Loose parts and fully torn-off parts only — bolted UI stays put.
-      const eligible = t.mode === 'free' || t.mounts.length === 0;
-      if (!eligible) return;
-      const dx = tip.x - t.body.position.x;
-      const dy = tip.y - t.body.position.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > reach || dist === 0) return;
-      Matter.Sleeping.set(t.body, false);
-      if (dist < 30) {
-        // Clinging: ride the magnet.
-        Matter.Body.setVelocity(t.body, {
-          x: t.body.velocity.x + (e.body.velocity.x - t.body.velocity.x) * 0.5 + dx * 0.06,
-          y: t.body.velocity.y + (e.body.velocity.y - t.body.velocity.y) * 0.5 + dy * 0.06,
-        });
-      } else {
-        const pull = 0.0018 * t.body.mass * (1 - dist / reach) ** 2;
-        const fx = (dx / dist) * pull;
-        const fy = (dy / dist) * pull;
-        Matter.Body.applyForce(t.body, t.body.position, { x: fx, y: fy });
-        reactX -= fx * 0.5;
-        reactY -= fy * 0.5;
-      }
-    });
-    // Newton's third law, scaled for comedy: a dangling magnet leans toward
-    // its prey.
+    const react = applyMagnetism(registry, e, tip, reach);
+    // A dangling magnet leans toward its prey.
     if (e.mounts.length < e.mountCount) {
-      Matter.Body.applyForce(e.body, e.body.position, { x: reactX, y: reactY });
+      Matter.Body.applyForce(e.body, e.body.position, react);
     }
   });
 
