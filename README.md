@@ -29,9 +29,10 @@ touches it. The system has two tiers:
   twist lives inside the interaction: the dropdown is a hydraulic press, the
   slider thumb is a ball that rolls if you don't keep the UI level, the
   stepper inflates, notifications physically pile up until dismissed.
-- **Machinery tier** — Conveyor, Bumper, Crane, Magnet, PartsBin. Openly
-  mechanical, opt-in scenery that gives the loose parts somewhere to go. The
-  trash can is a claw machine; bulk-select is an electromagnet.
+- **Machinery tier** — Conveyor, Crane, Magnet, PartsBin. Openly mechanical,
+  opt-in scenery that gives the loose parts somewhere to go. The trash can is
+  a claw machine; the raw electromagnet also ships embedded in a normal
+  control (`<Button magnetic>`).
 
 ## What is this
 
@@ -60,8 +61,8 @@ identity and the page looks perfectly boring. Then:
   down *through your form* on its way off the world.
 - **Text has mass.** `PhysicsText` gives every word its own body on weak
   letterpress glue.
-- **Machinery**: conveyor belts carry whatever lands on them (click to reverse),
-  pinball bumpers launch parts and keep score.
+- **Machinery**: conveyor belts carry whatever lands on them (click to
+  reverse), and the janitor crane files loose parts in the bin.
 - **Procedural sound.** Thuds, knocks, boings, brass dings and glass clinks are
   synthesized in ~150 lines of WebAudio. No samples.
 
@@ -70,7 +71,7 @@ identity and the page looks perfectly boring. Then:
 ```tsx
 import {
   PhysicsWorld, Card, Input, RadioGroup, Radio, Checkbox,
-  Toggle, Button, Modal, PhysicsText, Conveyor, Bumper,
+  Toggle, Button, Modal, PhysicsText, Select, Slider, Toaster,
 } from './src';
 import './src/styles/tokens.css';
 import './src/styles/base.css';
@@ -93,7 +94,7 @@ drag, collision routing and the loose-parts layer. Components must live inside i
 
 | Component | Semantics | Physics behaviour |
 | --- | --- | --- |
-| `Button` | `<button>` | Steel. Shockwave on click; physically pressable; `variant` primary/secondary/danger, `size` sm/md/lg |
+| `Button` | `<button>` | Steel. Shockwave on click; physically pressable; `variant` primary/secondary/danger, `size` sm/md/lg. `magnetic`: hold it down and it becomes an electromagnet that recalls every loose metal part in the shop |
 | `RadioGroup` / `Radio` | native radios | Selection dot is a brass ball; ejects on deselect, catchable by empty dials |
 | `Checkbox` | native checkbox | Tick pops out as debris on uncheck; impact-toggleable |
 | `Toggle` | `role="switch"` | Lever slam: recoil + shockwave on flip |
@@ -102,16 +103,15 @@ drag, collision routing and the loose-parts layer. Components must live inside i
 | `Select` | `aria-haspopup` listbox | **A hydraulic press.** The steel options panel is driven down on two pistons and physically shoves the UI beneath it aside; picking releases the pistons and the unwanted menu falls out of the interface. Drag the trigger and the open menu swings along |
 | `Slider` | `role="slider"` | The thumb is a brass ball in the groove. Drag it like any slider — but knock the component and the ball sloshes; tilt it and your setting rolls downhill. A slider dangling off one bolt pegs itself |
 | `Stepper` | `role="spinbutton"` | Inflates with every increment, grows buoyant (strains upward against its bolts; floats away if torn off), and **bursts** past max — scraps, bang, value slams to min. `onBurst` hook |
-| `Toaster` / `toast()` | `aria-live` region | Arrives like a normal toast: stacked, legible, on top of everything. The physics is **deferred** — a toast only becomes a falling object when you dismiss it (×) or a new arrival knocks the oldest off the full ledge |
-| `Tabs` | `role="tablist"` (arrow keys) | The tab bar is plain navigation chrome — no physics on wayfinding. The panel swap is the twist: the outgoing panel is **packed into a crate and winched off-screen to storage** |
+| `Toaster` / `toast()` | `aria-live` region | Arrives like a normal toast: stacked, legible, on top of everything. The physics is **deferred** — a toast only becomes a falling object when you dismiss it (×) or a new arrival knocks the oldest off the full ledge. Dismissed toasts fall on the overlay layer: through the UI, not into it |
+| `Tabs` | `role="tablist"` (arrow keys) | Pure navigation chrome: folder tabs, arrow-key roving, a small mechanical settle on the incoming panel — and deliberately nothing else |
 | `ProgressBar` | `role="progressbar"` | Filled with actual ball bearings. At 100% it **overflows** — surplus dribbles over the brim (`onOverflow`). Tip it past ~25° and the whole quota spills; level it to recover |
 | `Modal` | `role="dialog"` | Lowered from ceiling on two ropes; close = cut ropes; contents are `PhysicsExempt` passengers |
 | `PhysicsText` | `h1–h3/p/span/label` | Each word is a body; `setting="loose"` scatters easily |
 | `Card` (+`vehicle`) | `<section>` | With `vehicle`, children bolt to the card instead of the page: throw the card and its controls ride along, or tear them off it one by one |
 | `Conveyor` | machinery | Static; drags riders along the belt; click to reverse |
-| `Bumper` | machinery | Static; kicks anything that touches it; hit counter + score pops |
 | `Crane` | machinery | The janitor: patrols its rail, lowers a claw on a rope, grabs the lowest-lying loose part and files it at the drop point. `auto` or manual CYCLE |
-| `Magnet` | machinery (toggle chip) | Bulk-select, physically: attracts every loose ferrous part in reach; they cling and travel with it. Tear it off and carry your haul |
+| `Magnet` | machinery (toggle chip) | The raw shop electromagnet. Prefer `<Button magnetic>` for the same power inside a normal control |
 | `PartsBin` | machinery | The trash can: collects any loose part that settles inside, with a running tally |
 
 ### Materials (the token layer of physics)
@@ -170,20 +170,28 @@ the escape hatch can never be torn off, thrown, or pressed by falling debris.
   bolt and gravity applies again.
 - **Collision categories** keep the machine sane: `PART` (mounted components),
   `LOOSE` (balls, torn-off parts), `DEBRIS` (shards, spilled letters — they
-  can't jam your form), `WORLD` (walls, belts, bumpers).
+  can't jam your form), `WORLD` (walls, belts), and `OVERLAY` (modals and
+  dismissed toasts — they only collide with each other, so the drop-in is
+  never cut short by the header).
+- **Hitboxes**: labelled controls collide as their interactive part only —
+  an Input's body is its field, a Slider's is its groove. No invisible walls
+  where a label happens to be. (`usePhysicsBody({ hitboxRef })`.)
 - **Cross-component behaviours** ride the collision bus (`onImpact` with speed +
   the other entry's `kind`/`data`), which is what makes balls press buttons,
-  debris toggle checkboxes, and bumpers keep score.
+  debris toggle checkboxes, and empty radio dials reel in passing balls.
 - **One rAF loop**, fixed 60Hz step with an accumulator; DOM writes are
   imperative (no React re-render per frame). React owns discrete state only.
 
 ## Composition recipes (things that emerge, not features)
 
 - Belt → dump point → crane → bin: the shop cleans itself.
-- Magnet on + drag it over a radio group: dump your collected balls into a
-  dial to make a selection.
+- Hold the magnetic recall button until the shop's stray balls cling to it,
+  then release them over a radio group: empty dials are gently magnetic and
+  will catch a slow ball — selection by ball delivery.
 - Burst a stepper near the glass card: the scraps are harmless (debris), but
   the bang's shockwave isn't.
+- Fill the quota bar to 100% and let the overflow bearings roll to the belt —
+  the janitor files your surplus productivity as scrap.
 - Flick a toast off the ledge: it's litter now, and litter is the janitor's
   problem.
 - Open a Select above your checkboxes and enjoy the physical layout shift.

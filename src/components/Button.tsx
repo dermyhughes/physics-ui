@@ -70,7 +70,8 @@ export function Button({
     if (!magnetic || !fieldOn) return;
     const e = entry();
     if (!e) return;
-    const react = applyMagnetism(registry, e, e.body.position, 300);
+    // Recall means recall: the field covers the whole shop.
+    const react = applyMagnetism(registry, e, e.body.position, 900);
     if (e.mounts.length < e.mountCount) {
       Matter.Body.applyForce(e.body, e.body.position, react);
     }

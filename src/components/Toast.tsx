@@ -103,7 +103,7 @@ export function Toaster({ className, capacity = 3 }: ToasterProps) {
             key={item.id}
             data-toast-id={item.id}
             className={`tmbl-toast tmbl-toast--${item.tone} tmbl-toaster__item`}
-            style={{ bottom: `${i * 48}px` }}
+            style={{ bottom: `${i * 52}px` }}
           >
             {item.message}
             <button

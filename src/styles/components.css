@@ -458,6 +458,7 @@
   stroke: var(--tmbl-brass-700);
   stroke-width: 2.5;
   stroke-dasharray: 7 4;
+  fill: none;
   transition: opacity 0.2s ease;
 }
 .tmbl-modal {
@@ -1063,7 +1064,9 @@
   z-index: calc(var(--tmbl-z-overlay) - 1);
   pointer-events: none;
 }
-.tmbl-toaster__item {
+/* NB: doubled class beats .tmbl-toast's `position: relative` further down —
+   stacked toasts must stay absolutely positioned in their slots. */
+.tmbl-toaster__stack .tmbl-toaster__item.tmbl-toast {
   position: absolute;
   left: 0;
   right: 0;

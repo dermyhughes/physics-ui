@@ -33,8 +33,8 @@ export function Modal(props: ModalProps) {
 function ModalInner({ onClose, title, children }: ModalProps) {
   const { containerRef, registerLooseEl, registry, engine, getBounds } = useWorld();
   const panelRef = useRef<HTMLDivElement>(null);
-  const lineA = useRef<SVGLineElement>(null);
-  const lineB = useRef<SVGLineElement>(null);
+  const lineA = useRef<SVGPathElement>(null);
+  const lineB = useRef<SVGPathElement>(null);
   const ropes = useRef<{ constraints: Matter.Constraint[]; entry: BodyEntry | null }>({
     constraints: [],
     entry: null,
@@ -43,12 +43,18 @@ function ModalInner({ onClose, title, children }: ModalProps) {
 
   useEffect(() => {
     const el = panelRef.current;
-    if (!el) return;
-    const { w, h } = getBounds();
+    const container = containerRef.current;
+    if (!el || !container) return;
+    const { w } = getBounds();
+    // The world container can be taller than the screen — hang the dialog
+    // relative to the VIEWPORT the user is actually looking at.
+    const crect = container.getBoundingClientRect();
+    const viewTop = -crect.top;
+    const viewH = window.innerHeight;
     const pw = el.offsetWidth;
     const ph = el.offsetHeight;
     const spawnX = w / 2;
-    const spawnY = -ph / 2 - 40;
+    const spawnY = viewTop - ph / 2 - 50;
     el.style.transform = `translate(${spawnX - pw / 2}px, ${spawnY - ph / 2}px)`;
 
     const spec: LooseSpec = {
@@ -60,7 +66,7 @@ function ModalInner({ onClose, title, children }: ModalProps) {
       h: ph,
       x: spawnX,
       y: spawnY,
-      vy: 4,
+      vy: 7,
       // Own layer: the drop-in never clips the header on its way down. It
       // can still catch a dismissed toast on its roof.
       overlay: true,
@@ -76,19 +82,28 @@ function ModalInner({ onClose, title, children }: ModalProps) {
     ropes.current.entry = entry;
 
     if (entry) {
-      // Hang the panel so it settles around the upper third of the machine.
-      const ropeLen = Math.max(120, h * 0.34 - ph / 2);
+      // Hang the panel around the upper third of the viewport. The ropes
+      // start paid out to the spawn distance (zero violation — a large
+      // initial stretch makes Matter's sequential solver convert it into
+      // torque and the panel corkscrews in). They winch in per-frame below,
+      // so the dialog is genuinely LOWERED into view.
+      const ropeLen = Math.max(110, viewH * 0.36 - ph / 2);
       const spread = pw * 0.4;
-      const cs = [-1, 1].map((side) =>
-        Matter.Constraint.create({
-          pointA: { x: spawnX + side * (spread + 30), y: 6 },
+      const cs = [-1, 1].map((side) => {
+        const pointA = { x: spawnX + side * (spread + 26), y: viewTop + 8 };
+        const pointB = { x: side * spread, y: -ph / 2 + 6 };
+        const attach = Matter.Vector.add(entry!.body.position, pointB);
+        const c = Matter.Constraint.create({
+          pointA,
           bodyB: entry!.body,
-          pointB: { x: side * spread, y: -ph / 2 + 6 },
-          length: ropeLen,
-          stiffness: 0.06,
-          damping: 0.05,
-        }),
-      );
+          pointB,
+          length: Math.hypot(attach.x - pointA.x, attach.y - pointA.y) + 20,
+          stiffness: 0.5,
+          damping: 0.09,
+        });
+        (c as any).plugin = { targetLen: ropeLen };
+        return c;
+      });
       ropes.current.constraints = cs;
       Matter.Composite.add(engine.world, cs);
       playEffect('whoosh', 0.8);
@@ -106,20 +121,35 @@ function ModalInner({ onClose, title, children }: ModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Draw the ropes.
+  // Rope behaviour + rendering. A Matter constraint is a rod (it pushes when
+  // compressed); a rope only pulls. Emulate slack by zeroing the stiffness
+  // whenever the rope is shorter than its rest length — and draw it as a
+  // sagging curve instead of a rigid line.
   useFrame(() => {
     const { constraints, entry } = ropes.current;
     if (!entry) return;
     const lines = [lineA.current, lineB.current];
     constraints.forEach((c, i) => {
       const line = lines[i];
-      if (!line) return;
       // Matter keeps pointB rotated in place as the body rotates.
       const attach = Matter.Vector.add(entry.body.position, c.pointB as Matter.Vector);
-      line.setAttribute('x1', String((c.pointA as Matter.Vector).x));
-      line.setAttribute('y1', String((c.pointA as Matter.Vector).y));
-      line.setAttribute('x2', String(attach.x));
-      line.setAttribute('y2', String(attach.y));
+      const a = c.pointA as Matter.Vector;
+      const dist = Math.hypot(attach.x - a.x, attach.y - a.y);
+      // Winch in toward the hang length.
+      const target = (c as any).plugin?.targetLen ?? c.length;
+      if (c.length > target) c.length = Math.max(target, c.length - 10);
+      // Rope, not rod: pull-only, with give proportional to the violation so
+      // the catch is a soft snub rather than a yank. Damping only while taut —
+      // Matter applies it even at zero stiffness, which brakes free-fall.
+      const violation = dist - c.length;
+      c.stiffness = violation > 0 ? Math.min(0.5, 0.05 + violation * 0.02) : 0.0005;
+      c.damping = violation > 0 ? 0.08 : 0;
+      if (!line) return;
+      // Sag grows with slack; a taut rope keeps a hint of droop.
+      const sag = Math.min(90, Math.max(0, c.length - dist)) * 0.6 + 5;
+      const mx = (a.x + attach.x) / 2;
+      const my = (a.y + attach.y) / 2 + sag;
+      line.setAttribute('d', `M ${a.x} ${a.y} Q ${mx} ${my} ${attach.x} ${attach.y}`);
     });
     if (closing && lines[0]) {
       lines.forEach((l) => l?.setAttribute('opacity', '0'));
@@ -148,8 +178,8 @@ function ModalInner({ onClose, title, children }: ModalProps) {
   return createPortal(
     <div className="tmbl-modal-overlay" data-closing={closing || undefined}>
       <svg className="tmbl-modal-ropes" aria-hidden="true">
-        <line ref={lineA} className="tmbl-modal-rope" />
-        <line ref={lineB} className="tmbl-modal-rope" />
+        <path ref={lineA} className="tmbl-modal-rope" />
+        <path ref={lineB} className="tmbl-modal-rope" />
       </svg>
       <div
         ref={panelRef}
