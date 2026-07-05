@@ -1,0 +1,95 @@
+/* ============================================================
+   TUMBLE — Design Tokens
+   A design system with consequences.
+   ============================================================
+   Naming: --tmbl-{category}-{name}[-{state}]
+   ============================================================ */
+
+:root {
+  /* ---- Color: primitives (the machine shop) ---- */
+  --tmbl-paper-050: #faf6ec;
+  --tmbl-paper-100: #f3ebdd;
+  --tmbl-paper-200: #e9dfc9;
+  --tmbl-paper-300: #d9cbae;
+  --tmbl-ink-900: #221e17;
+  --tmbl-ink-700: #3b352a;
+  --tmbl-ink-500: #6b6353;
+  --tmbl-ink-300: #a2977f;
+  --tmbl-orange-500: #e8542f; /* safety orange — primary action */
+  --tmbl-orange-600: #cf431f;
+  --tmbl-orange-100: #fbd9cd;
+  --tmbl-brass-500: #d9a441; /* brass fittings — accents, balls */
+  --tmbl-brass-700: #a87a24;
+  --tmbl-blueprint-500: #2b5bb7; /* drafting ink — focus, links, grid */
+  --tmbl-blueprint-100: #d7e1f5;
+  --tmbl-verdigris-500: #3f8f6b; /* oxidised copper — success */
+  --tmbl-danger-500: #c22f2f; /* warning placard red */
+
+  /* ---- Color: semantic ---- */
+  --tmbl-color-bg: var(--tmbl-paper-100);
+  --tmbl-color-surface: var(--tmbl-paper-050);
+  --tmbl-color-surface-raised: #fffdf6;
+  --tmbl-color-text: var(--tmbl-ink-900);
+  --tmbl-color-text-muted: var(--tmbl-ink-500);
+  --tmbl-color-text-faint: var(--tmbl-ink-300);
+  --tmbl-color-action: var(--tmbl-orange-500);
+  --tmbl-color-action-hover: var(--tmbl-orange-600);
+  --tmbl-color-action-contrast: #fffdf6;
+  --tmbl-color-accent: var(--tmbl-brass-500);
+  --tmbl-color-focus: var(--tmbl-blueprint-500);
+  --tmbl-color-success: var(--tmbl-verdigris-500);
+  --tmbl-color-danger: var(--tmbl-danger-500);
+  --tmbl-color-line: var(--tmbl-ink-900);
+  --tmbl-color-line-soft: color-mix(in srgb, var(--tmbl-ink-900) 22%, transparent);
+
+  /* ---- Typography ---- */
+  --tmbl-font-display: 'Bricolage Grotesque', 'Avenir Next', sans-serif;
+  --tmbl-font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+  --tmbl-text-xs: 0.6875rem;
+  --tmbl-text-sm: 0.8125rem;
+  --tmbl-text-md: 1rem;
+  --tmbl-text-lg: 1.375rem;
+  --tmbl-text-xl: 2rem;
+  --tmbl-text-2xl: 3.25rem;
+  --tmbl-leading-tight: 1.05;
+  --tmbl-leading-body: 1.5;
+  --tmbl-tracking-caps: 0.14em;
+
+  /* ---- Space (4px base) ---- */
+  --tmbl-space-1: 4px;
+  --tmbl-space-2: 8px;
+  --tmbl-space-3: 12px;
+  --tmbl-space-4: 16px;
+  --tmbl-space-5: 24px;
+  --tmbl-space-6: 32px;
+  --tmbl-space-7: 48px;
+  --tmbl-space-8: 64px;
+
+  /* ---- Shape ---- */
+  --tmbl-radius-sm: 6px;
+  --tmbl-radius-md: 10px;
+  --tmbl-radius-lg: 16px;
+  --tmbl-radius-round: 999px;
+  --tmbl-border-w: 2px;
+
+  /* ---- Elevation (hard drafting-table shadows, no blur haze) ---- */
+  --tmbl-shadow-rest: 0 2px 0 var(--tmbl-color-line-soft);
+  --tmbl-shadow-raised: 0 4px 0 color-mix(in srgb, var(--tmbl-ink-900) 30%, transparent);
+  --tmbl-shadow-flying: 0 14px 24px -8px color-mix(in srgb, var(--tmbl-ink-900) 45%, transparent);
+
+  /* ---- Physics (consumed by JS via getComputedStyle + materials.ts) ---- */
+  --tmbl-gravity: 1; /* world default, ×9.8 m/s² equivalent */
+  --tmbl-mount-stiffness: 0.06; /* how firmly parts are bolted down */
+  --tmbl-mount-break: 90; /* px of stretch before a mount shears off */
+
+  /* ---- Motion ---- */
+  --tmbl-ease-clunk: cubic-bezier(0.22, 1.4, 0.36, 1);
+  --tmbl-dur-snap: 120ms;
+  --tmbl-dur-settle: 320ms;
+
+  /* ---- Z layers ---- */
+  --tmbl-z-machine: 1;
+  --tmbl-z-loose: 60; /* parts that have been ripped free */
+  --tmbl-z-drag: 80;
+  --tmbl-z-overlay: 100;
+}

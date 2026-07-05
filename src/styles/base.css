@@ -1,0 +1,130 @@
+/* ============================================================
+   TUMBLE — world & physics chrome
+   ============================================================ */
+
+.tmbl-world {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  isolation: isolate;
+}
+
+/* Any element that owns a physics body */
+[data-tmbl-body] {
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Parts hanging by one mount or torn free float above the machine */
+[data-tmbl-body][data-mounts='1'] {
+  z-index: var(--tmbl-z-loose);
+  position: relative;
+}
+[data-tmbl-body][data-mounts='0'] {
+  z-index: var(--tmbl-z-loose);
+  position: relative;
+  filter: drop-shadow(0 14px 10px color-mix(in srgb, var(--tmbl-ink-900) 35%, transparent));
+}
+[data-tmbl-body][data-dragging] {
+  z-index: var(--tmbl-z-drag);
+  position: relative;
+  cursor: grabbing;
+}
+
+html.tmbl-dragging,
+html.tmbl-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* ---- Loose parts layer (balls, letters, shards, debris) ---- */
+.tmbl-loose-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--tmbl-z-loose);
+}
+
+.tmbl-loose {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.45s ease;
+}
+.tmbl-loose[data-fading] {
+  opacity: 0;
+}
+
+/* Brass ball ejected from a radio */
+.tmbl-radio-ball {
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #f2d488, var(--tmbl-brass-500) 55%, var(--tmbl-brass-700));
+  box-shadow:
+    inset -1px -2px 3px rgba(0, 0, 0, 0.35),
+    0 2px 3px rgba(34, 30, 23, 0.4);
+}
+
+/* Ejected checkbox tick */
+.tmbl-tick-debris {
+  font-family: var(--tmbl-font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--tmbl-color-success);
+  background: var(--tmbl-color-surface-raised);
+  border: var(--tmbl-border-w) solid var(--tmbl-color-line);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 var(--tmbl-color-line-soft);
+}
+
+/* Falling typed letters / spilled input text */
+.tmbl-letter {
+  font-family: var(--tmbl-font-mono);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--tmbl-ink-700);
+}
+
+/* Glass shards */
+.tmbl-shard {
+  background: linear-gradient(135deg, rgba(214, 231, 240, 0.9), rgba(160, 196, 214, 0.55));
+  clip-path: polygon(50% 0%, 100% 82%, 6% 100%);
+  border: 0;
+}
+
+/* Bumper score pop */
+.tmbl-score-pop {
+  font-family: var(--tmbl-font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--tmbl-orange-500);
+  text-shadow: 0 1px 0 var(--tmbl-paper-050);
+}
+
+/* Screen-reader-only native inputs */
+.tmbl-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Shared field label */
+.tmbl-field-label {
+  display: block;
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tmbl-tracking-caps);
+  text-transform: uppercase;
+  color: var(--tmbl-color-text-muted);
+  margin-bottom: var(--tmbl-space-2);
+}

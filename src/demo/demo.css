@@ -1,0 +1,250 @@
+/* ============================================================
+   TUMBLE demo — R.G. Tumble & Sons, Precision Interface Works
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--tmbl-font-display);
+  font-size: var(--tmbl-text-md);
+  line-height: var(--tmbl-leading-body);
+  color: var(--tmbl-color-text);
+  background: var(--tmbl-color-bg);
+}
+
+.shop {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  cursor: grab;
+}
+
+/* Drafting-paper backdrop: dot grid + margin rules */
+.shop-blueprint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(color-mix(in srgb, var(--tmbl-blueprint-500) 22%, transparent) 1px, transparent 1.5px),
+    linear-gradient(to right, transparent 31px, color-mix(in srgb, var(--tmbl-orange-500) 30%, transparent) 31px, color-mix(in srgb, var(--tmbl-orange-500) 30%, transparent) 33px, transparent 33px);
+  background-size:
+    28px 28px,
+    100% 100%;
+  mask-image: linear-gradient(180deg, black 60%, rgba(0, 0, 0, 0.4));
+}
+
+/* ------------------------------------------------ header */
+.shop-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--tmbl-space-6);
+  padding: var(--tmbl-space-5) var(--tmbl-space-7) var(--tmbl-space-4);
+  border-bottom: 2px solid var(--tmbl-color-line);
+  position: relative;
+  z-index: var(--tmbl-z-machine);
+}
+
+.shop-logo {
+  margin: 0;
+  font-family: var(--tmbl-font-display);
+  font-size: var(--tmbl-text-2xl);
+  font-weight: 800;
+  font-stretch: 90%;
+  letter-spacing: -0.02em;
+  line-height: var(--tmbl-leading-tight);
+  color: var(--tmbl-ink-900);
+  text-shadow:
+    2px 2px 0 var(--tmbl-paper-050),
+    4px 4px 0 var(--tmbl-orange-500);
+}
+.shop-logo__reg {
+  font-size: 0.35em;
+  vertical-align: super;
+  color: var(--tmbl-orange-500);
+  text-shadow: none;
+}
+
+.shop-tagline {
+  margin-top: var(--tmbl-space-2);
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-sm);
+  color: var(--tmbl-color-text-muted);
+  max-width: 52ch;
+}
+
+.shop-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--tmbl-space-5);
+  padding-top: var(--tmbl-space-2);
+  flex: none;
+}
+
+/* ------------------------------------------------ floor */
+.shop-floor {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(430px, 1.2fr) minmax(320px, 0.8fr);
+  gap: var(--tmbl-space-7);
+  padding: var(--tmbl-space-6) var(--tmbl-space-7);
+  align-items: start;
+  position: relative;
+  z-index: var(--tmbl-z-machine);
+  min-height: 0;
+}
+
+/* The workbench is the static frame the form parts are bolted to */
+.shop-bench {
+  background: var(--tmbl-color-surface);
+  border: 2px solid var(--tmbl-color-line);
+  border-radius: var(--tmbl-radius-lg);
+  padding: var(--tmbl-space-6);
+  box-shadow: var(--tmbl-shadow-raised);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tmbl-paper-050) 70%, white),
+    var(--tmbl-color-surface) 120px
+  );
+}
+
+.shop-bench__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--tmbl-space-4);
+  margin-bottom: var(--tmbl-space-6);
+  border-bottom: 1.5px dashed var(--tmbl-color-line-soft);
+  padding-bottom: var(--tmbl-space-4);
+}
+
+.shop-bench__title {
+  font-size: var(--tmbl-text-xl);
+  font-weight: 800;
+  margin: 0;
+}
+
+.shop-fig {
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tmbl-tracking-caps);
+  color: var(--tmbl-color-text-faint);
+  white-space: nowrap;
+}
+
+.shop-bench__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--tmbl-space-6);
+  margin-bottom: var(--tmbl-space-6);
+  align-items: start;
+}
+
+.shop-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tmbl-space-2);
+}
+
+.shop-bench__submit {
+  display: flex;
+  align-items: center;
+  gap: var(--tmbl-space-5);
+  border-top: 1.5px dashed var(--tmbl-color-line-soft);
+  padding-top: var(--tmbl-space-5);
+}
+
+.shop-fine-print {
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  color: var(--tmbl-color-text-faint);
+  max-width: 30ch;
+}
+
+/* ------------------------------------------------ shelf */
+.shop-shelf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tmbl-space-6);
+  min-width: 0;
+}
+
+.shop-copy {
+  margin: 0;
+  font-size: var(--tmbl-text-sm);
+}
+
+.shop-manual {
+  margin: 0;
+  padding-left: 1.1em;
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  line-height: 1.7;
+  color: var(--tmbl-color-text-muted);
+}
+.shop-manual li::marker {
+  content: '» ';
+  color: var(--tmbl-orange-500);
+}
+
+.shop-bumpers {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: var(--tmbl-space-2) var(--tmbl-space-6);
+}
+
+/* ------------------------------------------------ belt & footer */
+.shop-belt {
+  padding: 0 var(--tmbl-space-7);
+  position: relative;
+  z-index: var(--tmbl-z-machine);
+}
+
+.shop-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--tmbl-space-5);
+  padding: var(--tmbl-space-3) var(--tmbl-space-7) var(--tmbl-space-4);
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  letter-spacing: 0.06em;
+  color: var(--tmbl-color-text-faint);
+  position: relative;
+  z-index: var(--tmbl-z-machine);
+}
+
+/* loose steel nut (hex) */
+.shop-nut {
+  background: linear-gradient(180deg, #b9b2a4, #7f7867);
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.shop-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--tmbl-space-5);
+}
+
+/* narrow screens: stack */
+@media (max-width: 980px) {
+  .shop-floor {
+    grid-template-columns: 1fr;
+    overflow: hidden;
+  }
+  .shop-bench__grid {
+    grid-template-columns: 1fr;
+  }
+}
