@@ -17,6 +17,22 @@ npm run dev      # the demo machine, http://localhost:5173
 npm run smoke    # headless-Chrome smoke test of the physics (needs Chrome + dev server)
 ```
 
+## The core tenet: it looks like a normal UI
+
+You should be able to build a real, respectable web interface out of these
+components — forms, settings pages, dialogs — and at rest it should look like
+one. The physics is **latent**: a TUMBLE page is a boring page until someone
+touches it. The system has two tiers:
+
+- **Component tier** — Button, Input, Select, Slider, Stepper, Radio,
+  Checkbox, Toggle, Card, Modal, Toast, Text. These read as standard UI. The
+  twist lives inside the interaction: the dropdown is a hydraulic press, the
+  slider thumb is a ball that rolls if you don't keep the UI level, the
+  stepper inflates, notifications physically pile up until dismissed.
+- **Machinery tier** — Conveyor, Bumper, Crane, Magnet, PartsBin. Openly
+  mechanical, opt-in scenery that gives the loose parts somewhere to go. The
+  trash can is a claw machine; bulk-select is an electromagnet.
+
 ## What is this
 
 React + [Matter.js](https://brm.io/matter-js/). Components render as **real DOM**
@@ -83,10 +99,18 @@ drag, collision routing and the loose-parts layer. Components must live inside i
 | `Toggle` | `role="switch"` | Lever slam: recoil + shockwave on flip |
 | `Input` | `<label>` + `<input>` | Typed glyphs fall in; shake to spill & clear |
 | `Card` | `<section>` | `material` prop; **glass shatters**, shows repair state; corner screws reflect surviving mounts |
+| `Select` | `aria-haspopup` listbox | **A hydraulic press.** The steel options panel is driven down on two pistons and physically shoves the UI beneath it aside; picking releases the pistons and the unwanted menu falls out of the interface. Drag the trigger and the open menu swings along |
+| `Slider` | `role="slider"` | The thumb is a brass ball in the groove. Drag it like any slider — but knock the component and the ball sloshes; tilt it and your setting rolls downhill. A slider dangling off one bolt pegs itself |
+| `Stepper` | `role="spinbutton"` | Inflates with every increment, grows buoyant (strains upward against its bolts; floats away if torn off), and **bursts** past max — scraps, bang, value slams to min. `onBurst` hook |
+| `Toaster` / `toast()` | `aria-live` region | Notifications are paperwork: they flutter down onto a ledge and **pile up until dismissed** (× button), or flick them off — the janitor files them as scrap eventually |
 | `Modal` | `role="dialog"` | Lowered from ceiling on two ropes; close = cut ropes; contents are `PhysicsExempt` passengers |
 | `PhysicsText` | `h1–h3/p/span/label` | Each word is a body; `setting="loose"` scatters easily |
-| `Conveyor` | decorative machinery | Static; drags riders along the belt; click to reverse |
-| `Bumper` | decorative machinery | Static; kicks anything that touches it; hit counter + score pops |
+| `Card` (+`vehicle`) | `<section>` | With `vehicle`, children bolt to the card instead of the page: throw the card and its controls ride along, or tear them off it one by one |
+| `Conveyor` | machinery | Static; drags riders along the belt; click to reverse |
+| `Bumper` | machinery | Static; kicks anything that touches it; hit counter + score pops |
+| `Crane` | machinery | The janitor: patrols its rail, lowers a claw on a rope, grabs the lowest-lying loose part and files it at the drop point. `auto` or manual CYCLE |
+| `Magnet` | machinery (toggle chip) | Bulk-select, physically: attracts every loose ferrous part in reach; they cling and travel with it. Tear it off and carry your haul |
+| `PartsBin` | machinery | The trash can: collects any loose part that settles inside, with a running tally |
 
 ### Materials (the token layer of physics)
 
@@ -149,13 +173,24 @@ riding inside another body (that's how modal contents work).
 - **One rAF loop**, fixed 60Hz step with an accumulator; DOM writes are
   imperative (no React re-render per frame). React owns discrete state only.
 
+## Composition recipes (things that emerge, not features)
+
+- Belt → dump point → crane → bin: the shop cleans itself.
+- Magnet on + drag it over a radio group: dump your collected balls into a
+  dial to make a selection.
+- Burst a stepper near the glass card: the scraps are harmless (debris), but
+  the bang's shockwave isn't.
+- Flick a toast off the ledge: it's litter now, and litter is the janitor's
+  problem.
+- Open a Select above your checkboxes and enjoy the physical layout shift.
+
 ## Known limits / future work
 
-- Parts nest **visually**, but each body is independent — a card and the button
-  on it are separate rigid bodies (only `Modal` uses the passenger system so
-  far). A general compound/vehicle API is the obvious next mechanism.
-- Cranes and magnet arms didn't make this cut. The `LooseSpec`/constraint
-  plumbing is all there; contributions of machinery welcome.
+- Vehicles don't nest (a vehicle card inside another vehicle card falls back
+  to page mounting, with a console warning).
+- The crane chases conveyor-borne targets slower than the belt moves; it
+  misses a lot. The union has been notified.
+- Select has no arrow-key option navigation yet (click/Enter/Escape only).
 - Mobile works (pointer events), but the demo layout is desktop-first.
 
 *Filed under: exploration of interaction and delight. Handle with gloves.*

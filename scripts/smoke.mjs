@@ -6,7 +6,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 const errors = [];
-page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+page.on('pageerror', (e) => { errors.push(`pageerror: ${e.message}`); console.log('PAGEERROR>', e.message.slice(0, 300)); });
 page.on('console', (m) => {
   if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 });
@@ -80,6 +80,53 @@ await page.locator('button:has-text("Reset machine")').dispatchEvent('click');
 await page.waitForTimeout(700);
 await page.screenshot({ path: `${shots}-6-reset.png` });
 console.log('loose parts after reset:', await page.locator('.tmbl-loose').count());
+
+// ---- Floor 2: machinery ----
+await page.locator('button:has-text("Fl. 2")').dispatchEvent('click');
+await page.waitForTimeout(900);
+console.log('T&C word bodies:', await page.locator('.shop-terms .tmbl-word').count());
+console.log('vehicle cards:', await page.locator('.tmbl-card[data-vehicle]').count());
+console.log('crane claw:', await page.locator('.tmbl-crane__claw').count());
+console.log('parts bin:', await page.locator('.tmbl-bin').count());
+
+// Vehicle riding: drag the crate; its child checkbox should NOT develop its
+// own large transform (it rides via the crate's transform).
+const crate = page.locator('.shop-crate');
+const cbox = await crate.boundingBox();
+await page.mouse.move(cbox.x + cbox.width / 2, cbox.y + 14);
+await page.mouse.down();
+await page.mouse.move(cbox.x + cbox.width / 2 - 60, cbox.y - 40, { steps: 8 });
+await page.waitForTimeout(200);
+const crateT = await crate.evaluate((el) => el.style.transform || '(none)');
+const riderT = await page.locator('.shop-crate .tmbl-checkbox').first().evaluate((el) => el.style.transform || '(none)');
+await page.mouse.up();
+console.log('crate transform while dragged:', crateT.slice(0, 44));
+console.log('rider own transform (should be tiny/none):', riderT.slice(0, 44));
+
+// Stepper: inflate past max → burst
+const plus = page.locator('.tmbl-stepper__btn[aria-label="Increase Tank pressure"]');
+for (let i = 0; i < 6; i++) {
+  await plus.dispatchEvent('click');
+  await page.waitForTimeout(120);
+}
+await page.waitForTimeout(300);
+console.log('stepper burst state:', await page.locator('.tmbl-stepper[data-burst]').count());
+console.log('rubber scraps:', await page.locator('.tmbl-scrap').count());
+await page.waitForTimeout(1500);
+console.log('stepper value after burst:', await page.locator('.tmbl-stepper__balloon').getAttribute('aria-valuenow'));
+
+// Magnet on
+await page.locator('.tmbl-magnet input').dispatchEvent('click');
+await page.waitForTimeout(200);
+console.log('magnet on:', await page.locator('.tmbl-magnet[data-on]').count());
+
+// Let the janitor work on the scraps for a bit
+await page.locator('button:has-text("Drop part")').dispatchEvent('click');
+await page.waitForTimeout(9000);
+const binText = await page.locator('.tmbl-bin__count').textContent();
+console.log('bin collected (janitor, best-effort):', binText);
+console.log('crane status:', await page.locator('.tmbl-crane__status').textContent());
+await page.screenshot({ path: `${shots}-7-machinery.png` });
 
 console.log('--- ERRORS ---');
 console.log(errors.length ? errors.join('\n') : '(none)');

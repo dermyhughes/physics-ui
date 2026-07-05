@@ -165,11 +165,36 @@ const voices: Record<Material['voice'], VoiceFn> = {
 };
 
 /** One-off UI sounds (shatter, eject, machinery). */
-export function playEffect(kind: 'shatter' | 'pop' | 'ratchet' | 'whoosh', intensity = 1) {
+export function playEffect(
+  kind: 'shatter' | 'pop' | 'ratchet' | 'whoosh' | 'bang',
+  intensity = 1,
+) {
   const c = ensureCtx();
   if (!c || !master || muted) return;
   const t = c.currentTime;
-  if (kind === 'shatter') {
+  if (kind === 'bang') {
+    // Balloon burst: sharp noise crack + low thump.
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(c, 0.12);
+    const hp = c.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 600;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.9 * intensity, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    src.connect(hp).connect(g).connect(master);
+    src.start(t);
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.22);
+    const og = c.createGain();
+    og.gain.setValueAtTime(0.7 * intensity, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+    osc.connect(og).connect(master);
+    osc.start(t);
+    osc.stop(t + 0.28);
+  } else if (kind === 'shatter') {
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
         voices.clink(c, master!, { gain: 0.4 * intensity, pitch: Math.random() });

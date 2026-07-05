@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { useWorld } from '../physics/PhysicsWorld';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useWorld, VehicleProvider, type VehicleHandle } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { MATERIALS, type MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
@@ -11,6 +11,11 @@ export interface CardProps {
   className?: string;
   /** Extra-firm mounting for cards that anchor a layout. */
   bolted?: boolean;
+  /**
+   * Vehicle mode: children with physics bolt themselves to this card instead
+   * of the page — they ride it when it's thrown, and can be torn off it.
+   */
+  vehicle?: boolean;
 }
 
 /**
@@ -18,15 +23,17 @@ export interface CardProps {
  * almost immovable, and GLASS cards shatter if anything hits them hard enough
  * — leaving a "COMPONENT DAMAGED" placard until you press REPAIR.
  */
-export function Card({ children, title, material = 'wood', className, bolted }: CardProps) {
+export function Card({ children, title, material = 'wood', className, bolted, vehicle }: CardProps) {
   const [broken, setBroken] = useState(false);
   const { spawnLoose, containerRef } = useWorld();
   const lastShatter = useRef(0);
+  const handle = useRef<VehicleHandle>({ entryRef: { current: null }, listeners: new Set() }).current;
 
   const { ref, entry } = usePhysicsBody<HTMLElement>({
     kind: 'card',
     material,
-    weight: bolted ? 2 : 1,
+    // Vehicles are heavier so their riders don't wag the whole crate.
+    weight: bolted ? 2 : vehicle ? 1.8 : 1,
     mountStiffness: bolted ? 0.12 : 0.06,
     mountBreakAt: bolted ? 160 : 100,
     onImpact: (info) => {
@@ -38,6 +45,18 @@ export function Card({ children, title, material = 'wood', className, bolted }: 
       }
     },
   });
+
+  // Publish the card's body to riders once it exists (this effect runs after
+  // usePhysicsBody's, and after all children have subscribed).
+  useEffect(() => {
+    if (!vehicle) return;
+    handle.entryRef.current = entry();
+    handle.listeners.forEach((cb) => cb());
+    return () => {
+      handle.entryRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const shatter = () => {
     const e = entry();
@@ -74,6 +93,7 @@ export function Card({ children, title, material = 'wood', className, bolted }: 
       className={`tmbl-card ${className ?? ''}`}
       data-material={material}
       data-broken={broken || undefined}
+      data-vehicle={vehicle || undefined}
     >
       {title && (
         <header className="tmbl-card__title">
@@ -96,6 +116,10 @@ export function Card({ children, title, material = 'wood', className, bolted }: 
             repair
           </button>
         </div>
+      ) : vehicle ? (
+        <VehicleProvider handle={handle}>
+          <div className="tmbl-card__body">{children}</div>
+        </VehicleProvider>
       ) : (
         <div className="tmbl-card__body">{children}</div>
       )}

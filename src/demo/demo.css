@@ -208,7 +208,9 @@ body {
 
 /* ------------------------------------------------ belt & footer */
 .shop-belt {
-  padding: 0 var(--tmbl-space-7);
+  /* Belt stops short of the right wall: it dumps its cargo on the floor
+     inside the crane's reach, and the janitor takes it from there. */
+  padding: 0 170px 0 var(--tmbl-space-7);
   position: relative;
   z-index: var(--tmbl-z-machine);
 }
@@ -247,4 +249,100 @@ body {
   .shop-bench__grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ------------------------------------------------ floor tabs */
+.shop-tabs {
+  display: flex;
+  gap: var(--tmbl-space-3);
+  padding-top: var(--tmbl-space-2);
+  flex: none;
+}
+.shop-tab .tmbl-button__cap {
+  color: var(--tmbl-color-text-muted);
+}
+.shop-tab--active .tmbl-button__cap {
+  background: linear-gradient(180deg, #f4693f, var(--tmbl-orange-500) 40%, var(--tmbl-orange-600)) !important;
+  color: var(--tmbl-color-action-contrast) !important;
+}
+
+/* ------------------------------------------------ machinery floor */
+.shop-floor--machinery {
+  grid-template-columns: minmax(420px, 1.05fr) minmax(380px, 0.95fr);
+}
+.shop-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tmbl-space-6);
+  min-width: 0;
+}
+
+.shop-terms__text {
+  font-size: var(--tmbl-text-sm);
+  color: var(--tmbl-ink-700);
+  margin-bottom: var(--tmbl-space-4);
+  line-height: 1.65;
+}
+
+.shop-crate__note {
+  margin: 0 0 var(--tmbl-space-4);
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  color: var(--tmbl-color-text-faint);
+  max-width: 52ch;
+}
+.shop-crate__row {
+  display: flex;
+  align-items: center;
+  gap: var(--tmbl-space-4);
+  flex-wrap: wrap;
+}
+.shop-crate {
+  background-image:
+    linear-gradient(45deg, transparent 47%, color-mix(in srgb, var(--tmbl-brass-700) 22%, transparent) 47%, color-mix(in srgb, var(--tmbl-brass-700) 22%, transparent) 53%, transparent 53%);
+}
+
+.shop-gauges {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tmbl-space-5);
+  flex-wrap: wrap;
+  background: var(--tmbl-color-surface);
+  border: 2px solid var(--tmbl-color-line);
+  border-radius: var(--tmbl-radius-lg);
+  padding: var(--tmbl-space-5);
+  box-shadow: var(--tmbl-shadow-raised);
+}
+.shop-gauges__note {
+  margin: 0;
+  font-family: var(--tmbl-font-mono);
+  font-size: var(--tmbl-text-xs);
+  color: var(--tmbl-color-text-faint);
+  flex: 1 1 100%;
+  max-width: 62ch;
+}
+
+.shop-crane-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--tmbl-space-5);
+  min-height: 230px;
+}
+.shop-crane-zone__floor {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--tmbl-space-5);
+  margin-top: auto;
+  padding-top: 96px; /* head-room for the claw to swing through */
+}
+
+/* ------------------------------------------------ toaster perch */
+.shop-toaster {
+  position: absolute;
+  top: 86px;
+  right: 44px;
+  z-index: var(--tmbl-z-machine);
 }

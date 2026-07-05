@@ -51,6 +51,8 @@ export interface BodyEntry {
   mountCount: number;
   mountStiffness: number;
   mountBreakAt: number;
+  /** Vehicle this part rides: mounts anchor to the parent body, not the world. */
+  parent?: BodyEntry | null;
   onImpact?: (info: ImpactInfo) => void;
   onMountsChange?: (remaining: number) => void;
   /** Arbitrary component payload (e.g. which radio value a loose ball holds). */
@@ -75,6 +77,8 @@ export interface FlowBodyOptions {
   data?: Record<string, unknown>;
   /** Extra Matter body options (restitution overrides etc.) */
   bodyOverrides?: Matter.IBodyDefinition;
+  /** Bolt this part to a vehicle body instead of the page (set via VehicleCtx). */
+  parent?: BodyEntry | null;
 }
 
 export interface LooseSpec {
@@ -95,6 +99,10 @@ export interface LooseSpec {
   text?: string;
   /** DEBRIS parts don't collide with mounted components. */
   debris?: boolean;
+  /** Custom collision mask (e.g. machinery that must not knock the UI). */
+  maskOverride?: number;
+  /** Render a × button on the part (used by toasts). */
+  dismissible?: boolean;
   data?: Record<string, unknown>;
   onImpact?: (info: ImpactInfo) => void;
 }
@@ -134,6 +142,36 @@ export function PhysicsExempt({ children }: { children: ReactNode }) {
 
 export function usePhysicsExempt(): boolean {
   return useContext(ExemptCtx);
+}
+
+/**
+ * Vehicle plumbing: a Card with `vehicle` publishes its body entry here, and
+ * every usePhysicsBody part rendered inside bolts itself to the card instead
+ * of the page. Children ride the vehicle when it's thrown — and can still be
+ * torn off it individually.
+ *
+ * The handle is subscription-based because child effects run before the
+ * parent's: children wait for the vehicle's body to exist, then attach.
+ */
+export interface VehicleHandle {
+  entryRef: { current: BodyEntry | null };
+  listeners: Set<() => void>;
+}
+
+const VehicleCtx = createContext<VehicleHandle | null>(null);
+
+export function useVehicleHandle(): VehicleHandle | null {
+  return useContext(VehicleCtx);
+}
+
+export function VehicleProvider({
+  handle,
+  children,
+}: {
+  handle: VehicleHandle;
+  children: ReactNode;
+}) {
+  return <VehicleCtx.Provider value={handle}>{children}</VehicleCtx.Provider>;
 }
 
 export function useWorld(): WorldCtx {
@@ -218,15 +256,21 @@ export function PhysicsWorld({
       raf = requestAnimationFrame(() => {
         rebuildWalls();
         const crect = container.getBoundingClientRect();
-        registry.forEach((entry) => {
-          if (entry.mode !== 'flow') return;
-          const prev = entry.el.style.transform;
-          entry.el.style.transform = 'none';
+        const flow = [...registry.values()].filter((e) => e.mode === 'flow');
+        // Clear ALL transforms first — a vehicle's transform would corrupt
+        // its riders' measurements.
+        const prevTransforms = flow.map((e) => e.el.style.transform);
+        flow.forEach((e) => (e.el.style.transform = 'none'));
+        flow.forEach((entry) => {
           const r = entry.el.getBoundingClientRect();
-          entry.el.style.transform = prev;
-          const home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
-          entry.home = home;
-          entry.mounts.forEach((m, i) => {
+          entry.home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+        });
+        flow.forEach((entry, idx) => {
+          entry.el.style.transform = prevTransforms[idx];
+          const home = entry.home;
+          entry.mounts.forEach((m) => {
+            // Vehicle-anchored mounts are home-independent; world anchors move.
+            if (m.bodyA) return;
             const off = (m as any).plugin.homeOffset as Vec;
             m.pointA = { x: home.x + off.x, y: home.y + off.y };
           });
@@ -263,14 +307,17 @@ export function PhysicsWorld({
         const { body, el } = entry;
         if (body.isStatic && entry.mode === 'flow') return;
 
-        // Mount shearing
+        // Mount shearing. NB: Matter rotates pointA/pointB in place as the
+        // bodies rotate, so world attach points are position + point, no
+        // extra rotation.
         for (let i = entry.mounts.length - 1; i >= 0; i--) {
           const m = entry.mounts[i];
-          const attach = Matter.Vector.add(
-            body.position,
-            Matter.Vector.rotate(m.pointB as Vec, body.angle),
-          );
-          const stretch = Matter.Vector.magnitude(Matter.Vector.sub(attach, m.pointA as Vec));
+          const pA = m.pointA as Vec;
+          const anchorX = m.bodyA ? m.bodyA.position.x + pA.x : pA.x;
+          const anchorY = m.bodyA ? m.bodyA.position.y + pA.y : pA.y;
+          const attachX = body.position.x + (m.pointB as Vec).x;
+          const attachY = body.position.y + (m.pointB as Vec).y;
+          const stretch = Math.hypot(attachX - anchorX, attachY - anchorY);
           const breakAt = (m as any).plugin.breakAt as number;
           if (stretch > breakAt) {
             Matter.Composite.remove(engine.world, m);
@@ -283,12 +330,29 @@ export function PhysicsWorld({
 
         // Write transform. Keep resting parts transform-free so text stays crisp.
         if (entry.mode === 'flow') {
-          const dx = body.position.x - entry.home.x;
-          const dy = body.position.y - entry.home.y;
-          if (Math.abs(dx) < 0.08 && Math.abs(dy) < 0.08 && Math.abs(body.angle) < 0.002) {
+          let dx: number;
+          let dy: number;
+          let rotAngle: number;
+          const p = entry.parent;
+          if (p) {
+            // The element lives inside the parent's (already transformed) DOM,
+            // so express the delta in the parent's rotated frame.
+            const cos = Math.cos(-p.body.angle);
+            const sin = Math.sin(-p.body.angle);
+            const wx = body.position.x - p.body.position.x;
+            const wy = body.position.y - p.body.position.y;
+            dx = wx * cos - wy * sin - (entry.home.x - p.home.x);
+            dy = wx * sin + wy * cos - (entry.home.y - p.home.y);
+            rotAngle = body.angle - p.body.angle;
+          } else {
+            dx = body.position.x - entry.home.x;
+            dy = body.position.y - entry.home.y;
+            rotAngle = body.angle;
+          }
+          if (Math.abs(dx) < 0.08 && Math.abs(dy) < 0.08 && Math.abs(rotAngle) < 0.002) {
             if (el.style.transform !== '') el.style.transform = '';
           } else {
-            el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${body.angle.toFixed(4)}rad)`;
+            el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rotAngle.toFixed(4)}rad)`;
           }
         } else {
           el.style.transform = `translate(${(body.position.x - entry.size.w / 2).toFixed(2)}px, ${(
@@ -307,12 +371,17 @@ export function PhysicsWorld({
   // Fully-mounted parts are "bolted down": we cancel gravity on them so the
   // layout doesn't sag. Lose a mount and gravity gets its hands on you.
   useEffect(() => {
+    const fullyMounted = (e: BodyEntry): boolean =>
+      e.mountCount > 0 && e.mounts.length === e.mountCount;
     const before = () => {
       const g = engine.gravity;
       registry.forEach((entry) => {
         const b = entry.body;
         if (b.isStatic || entry.mode !== 'flow') return;
-        if (entry.mountCount > 0 && entry.mounts.length === entry.mountCount) {
+        // Bolted parts are weightless — but a rider only counts as bolted if
+        // its vehicle still is; when the vehicle tears off, the whole assembly
+        // gets heavy together.
+        if (fullyMounted(entry) && (!entry.parent || fullyMounted(entry.parent))) {
           b.force.y -= b.mass * g.y * g.scale;
           b.force.x -= b.mass * g.x * g.scale;
         }
@@ -327,7 +396,9 @@ export function PhysicsWorld({
           [pair.bodyB, pair.bodyA],
         ] as const) {
           const speed = (belt.plugin as any)?.tumbleConveyor;
-          if (typeof speed === 'number' && !rider.isStatic) {
+          // The crane's claw hovers over the belt constantly — dragging it
+          // along would fly the crane like a kite.
+          if (typeof speed === 'number' && !rider.isStatic && rider.label !== 'claw') {
             Matter.Sleeping.set(rider, false);
             Matter.Body.setVelocity(rider, {
               x: rider.velocity.x + (speed - rider.velocity.x) * 0.12,
@@ -408,6 +479,10 @@ export function PhysicsWorld({
 
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      // Controls with their own pointer gestures (slider thumbs, toast ×)
+      // opt out of body-dragging. This runs before React's delegated
+      // handlers, so it can't rely on them calling stopPropagation.
+      if ((e.target as HTMLElement | null)?.closest?.('[data-tmbl-nodrag]')) return;
       primeAudio();
       const p = toLocal(e);
       const bodies = [...registry.values()]
@@ -487,8 +562,57 @@ export function PhysicsWorld({
       const container = containerRef.current!;
       const crect = container.getBoundingClientRect();
       const r = el.getBoundingClientRect();
-      const home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+
+      let parent = opts.parent ?? null;
+      if (parent?.parent) {
+        // One level of nesting only: a vehicle can't ride another vehicle.
+        console.warn('[tumble] nested vehicles are not supported; mounting to the page instead');
+        parent = null;
+      }
+
+      const rot = (v: Vec, a: number): Vec => ({
+        x: v.x * Math.cos(a) - v.y * Math.sin(a),
+        y: v.x * Math.sin(a) + v.y * Math.cos(a),
+      });
+
+      // Home = where the part sits at rest. For vehicle children, express the
+      // measured offset in the parent's rest frame so it stays valid even if
+      // the child attaches while the vehicle is mid-flight.
+      let home: Vec;
+      if (parent) {
+        const prect = parent.el.getBoundingClientRect();
+        const rel = rot(
+          {
+            x: r.left + r.width / 2 - (prect.left + prect.width / 2),
+            y: r.top + r.height / 2 - (prect.top + prect.height / 2),
+          },
+          -parent.body.angle,
+        );
+        home = { x: parent.home.x + rel.x, y: parent.home.y + rel.y };
+      } else {
+        home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+      }
+
+      // Spawn where the part currently renders (identical to home unless the
+      // vehicle is already displaced).
+      const spawn: Vec = parent
+        ? Matter.Vector.add(
+            parent.body.position,
+            rot({ x: home.x - parent.home.x, y: home.y - parent.home.y }, parent.body.angle),
+          )
+        : home;
+      const spawnAngle = parent ? parent.body.angle : 0;
+
       const mat = MATERIALS[opts.material ?? 'wood'];
+      // Riders overlap their vehicle's rectangle by construction; a shared
+      // negative collision group keeps the assembly from fighting itself.
+      let group = 0;
+      if (parent) {
+        if (!parent.body.collisionFilter.group || parent.body.collisionFilter.group >= 0) {
+          parent.body.collisionFilter.group = Matter.Body.nextGroup(true);
+        }
+        group = parent.body.collisionFilter.group;
+      }
       const common: Matter.IBodyDefinition = {
         density: mat.density * (opts.weight ?? 1),
         restitution: mat.restitution,
@@ -498,21 +622,24 @@ export function PhysicsWorld({
         collisionFilter: {
           category: opts.isStatic ? CATEGORY.WORLD : CATEGORY.PART,
           mask: CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
+          group,
         },
         label: opts.kind,
         ...opts.bodyOverrides,
       };
       const body =
         opts.shape === 'circle'
-          ? Matter.Bodies.circle(home.x, home.y, Math.max(r.width, r.height) / 2, common)
-          : Matter.Bodies.rectangle(home.x, home.y, r.width, r.height, {
+          ? Matter.Bodies.circle(spawn.x, spawn.y, Math.max(r.width, r.height) / 2, common)
+          : Matter.Bodies.rectangle(spawn.x, spawn.y, r.width, r.height, {
               chamfer: { radius: Math.min(10, r.height / 4) },
               ...common,
             });
+      if (spawnAngle !== 0) Matter.Body.setAngle(body, spawnAngle);
 
       const mountCount = opts.isStatic ? 0 : (opts.mounts ?? 2);
-      const stiffness = opts.mountStiffness ?? 0.06;
-      const breakAt = opts.mountBreakAt ?? 90;
+      // Vehicle riders are strapped down harder but rip off sooner.
+      const stiffness = opts.mountStiffness ?? (parent ? 0.09 : 0.06);
+      const breakAt = opts.mountBreakAt ?? (parent ? 75 : 90);
       const mounts: Matter.Constraint[] = [];
       const offsets: Vec[] =
         mountCount === 1
@@ -523,14 +650,29 @@ export function PhysicsWorld({
             ];
       for (let i = 0; i < mountCount; i++) {
         const off = offsets[i];
-        const c = Matter.Constraint.create({
-          pointA: { x: home.x + off.x, y: home.y + off.y },
-          bodyB: body,
-          pointB: { ...off },
-          stiffness,
-          damping: 0.1,
-          length: 0,
-        });
+        const c = parent
+          ? Matter.Constraint.create({
+              // pointA is world-oriented at creation; Matter captures angleA
+              // and keeps it rotated with the parent from here on.
+              bodyA: parent.body,
+              pointA: rot(
+                { x: home.x - parent.home.x + off.x, y: home.y - parent.home.y + off.y },
+                parent.body.angle,
+              ),
+              bodyB: body,
+              pointB: rot({ ...off }, spawnAngle),
+              stiffness,
+              damping: 0.1,
+              length: 0,
+            })
+          : Matter.Constraint.create({
+              pointA: { x: home.x + off.x, y: home.y + off.y },
+              bodyB: body,
+              pointB: { ...off },
+              stiffness,
+              damping: 0.1,
+              length: 0,
+            });
         (c as any).plugin = { homeOffset: off, breakAt, stiffness };
         mounts.push(c);
       }
@@ -548,6 +690,7 @@ export function PhysicsWorld({
         mountCount,
         mountStiffness: stiffness,
         mountBreakAt: breakAt,
+        parent,
         onImpact: opts.onImpact,
         onMountsChange: opts.onMountsChange,
         data: opts.data,
@@ -555,7 +698,9 @@ export function PhysicsWorld({
       registry.set(body.id, entry);
       Matter.Composite.add(engine.world, [body, ...mounts]);
       el.dataset.tmblBody = '';
-      el.dataset.mounts = String(mountCount);
+      // Static machinery is never "torn off" — don't mark it with a mount
+      // count or the loose-part styling would kick in.
+      if (!opts.isStatic) el.dataset.mounts = String(mountCount);
 
       return () => {
         registry.delete(body.id);
@@ -583,12 +728,15 @@ export function PhysicsWorld({
         friction: mat.friction,
         frictionAir: mat.frictionAir,
         label: spec.kind,
-        collisionFilter: spec.debris
-          ? { category: CATEGORY.DEBRIS, mask: CATEGORY.WORLD | CATEGORY.DEBRIS }
-          : {
-              category: CATEGORY.LOOSE,
-              mask: CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
-            },
+        collisionFilter:
+          spec.maskOverride != null
+            ? { category: CATEGORY.LOOSE, mask: spec.maskOverride }
+            : spec.debris
+              ? { category: CATEGORY.DEBRIS, mask: CATEGORY.WORLD | CATEGORY.DEBRIS }
+              : {
+                  category: CATEGORY.LOOSE,
+                  mask: CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
+                },
       };
       const body =
         spec.shape === 'circle'
@@ -643,12 +791,12 @@ export function PhysicsWorld({
         registry.delete(id);
       });
       setLooseSpecs([]);
+      // Pass 1 — seat every part at home BEFORE rebuilding any mounts. Matter
+      // constraints capture body angles at creation and rotate attachment
+      // points relative to them, so bolting a still-tumbled part (or bolting
+      // a rider to a still-tumbled vehicle) makes the solver hurl it.
       registry.forEach((entry) => {
         if (entry.mode !== 'flow' || entry.body.isStatic) return;
-        // Re-bolt: snap home FIRST, then rebuild sheared mounts. Matter
-        // constraints capture bodyB.angle at creation (angleB) and rotate the
-        // attachment relative to it, so building them while the part is still
-        // tumbled makes the solver hurl it across the shop.
         entry.mounts.forEach((m) => Matter.Composite.remove(engine.world, m));
         entry.mounts = [];
         Matter.Body.setPosition(entry.body, entry.home);
@@ -656,7 +804,11 @@ export function PhysicsWorld({
         Matter.Body.setVelocity(entry.body, { x: 0, y: 0 });
         Matter.Body.setAngularVelocity(entry.body, 0);
         Matter.Sleeping.set(entry.body, false);
-        const { home, size, mountCount, mountStiffness, mountBreakAt } = entry;
+      });
+      // Pass 2 — re-bolt everything (riders back onto their vehicles).
+      registry.forEach((entry) => {
+        if (entry.mode !== 'flow' || entry.body.isStatic) return;
+        const { home, size, mountCount, mountStiffness, mountBreakAt, parent } = entry;
         const offsets: Vec[] =
           mountCount === 1
             ? [{ x: 0, y: -size.h * 0.3 }]
@@ -666,14 +818,24 @@ export function PhysicsWorld({
               ];
         for (let i = 0; i < mountCount; i++) {
           const off = offsets[i];
-          const c = Matter.Constraint.create({
-            pointA: { x: home.x + off.x, y: home.y + off.y },
-            bodyB: entry.body,
-            pointB: { ...off },
-            stiffness: mountStiffness,
-            damping: 0.1,
-            length: 0,
-          });
+          const c = parent
+            ? Matter.Constraint.create({
+                bodyA: parent.body,
+                pointA: { x: home.x - parent.home.x + off.x, y: home.y - parent.home.y + off.y },
+                bodyB: entry.body,
+                pointB: { ...off },
+                stiffness: mountStiffness,
+                damping: 0.1,
+                length: 0,
+              })
+            : Matter.Constraint.create({
+                pointA: { x: home.x + off.x, y: home.y + off.y },
+                bodyB: entry.body,
+                pointB: { ...off },
+                stiffness: mountStiffness,
+                damping: 0.1,
+                length: 0,
+              });
           (c as any).plugin = { homeOffset: off, breakAt: mountBreakAt, stiffness: mountStiffness };
           entry.mounts.push(c);
           Matter.Composite.add(engine.world, c);
@@ -746,7 +908,7 @@ function LooseLayer() {
 }
 
 function LoosePart({ spec }: { spec: LooseSpec }) {
-  const { registerLooseEl } = useWorld();
+  const { registerLooseEl, removeLoose } = useWorld();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => registerLooseEl(spec, ref.current!), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -757,6 +919,21 @@ function LoosePart({ spec }: { spec: LooseSpec }) {
       style={{ width: spec.w, height: spec.h }}
     >
       {spec.text}
+      {spec.dismissible && (
+        <button
+          type="button"
+          className="tmbl-loose__dismiss"
+          aria-label="Dismiss"
+          data-tmbl-nodrag=""
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeLoose(spec.id, { pop: true });
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

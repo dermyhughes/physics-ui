@@ -2,6 +2,7 @@ import Matter from 'matter-js';
 import { useEffect, useRef } from 'react';
 import {
   usePhysicsExempt,
+  useVehicleHandle,
   useWorld,
   type BodyEntry,
   type FlowBodyOptions,
@@ -18,6 +19,7 @@ export function usePhysicsBody<T extends HTMLElement>(opts: FlowBodyOptions) {
   const ref = useRef<T>(null);
   const { registerFlow, registry, engine } = useWorld();
   const exempt = usePhysicsExempt();
+  const vehicle = useVehicleHandle();
   const entryRef = useRef<BodyEntry | null>(null);
 
   // Keep latest callbacks without re-registering the body.
@@ -29,21 +31,47 @@ export function usePhysicsBody<T extends HTMLElement>(opts: FlowBodyOptions) {
   useEffect(() => {
     const el = ref.current;
     if (!el || exempt) return;
-    const cleanup = registerFlow(el, {
-      ...opts,
-      onImpact: (info) => impactRef.current?.(info),
-      onMountsChange: (n) => mountsRef.current?.(n),
-    });
-    // Find our entry (registerFlow keyed it by body id; look it up via el).
-    for (const e of registry.values()) {
-      if (e.el === el) {
-        entryRef.current = e;
-        break;
+    let cleanup: (() => void) | null = null;
+    let disposed = false;
+
+    const attach = () => {
+      if (disposed || !el.isConnected) return;
+      cleanup = registerFlow(el, {
+        ...opts,
+        parent: vehicle?.entryRef.current ?? null,
+        onImpact: (info) => impactRef.current?.(info),
+        onMountsChange: (n) => mountsRef.current?.(n),
+      });
+      // Find our entry (registerFlow keyed it by body id; look it up via el).
+      for (const e of registry.values()) {
+        if (e.el === el) {
+          entryRef.current = e;
+          break;
+        }
       }
+    };
+
+    // Riding a vehicle whose body doesn't exist yet (child effects run before
+    // the parent's): wait for the vehicle to publish its entry.
+    if (vehicle && !vehicle.entryRef.current) {
+      const onReady = () => {
+        vehicle.listeners.delete(onReady);
+        attach();
+      };
+      vehicle.listeners.add(onReady);
+      return () => {
+        disposed = true;
+        vehicle.listeners.delete(onReady);
+        entryRef.current = null;
+        cleanup?.();
+      };
     }
+
+    attach();
     return () => {
+      disposed = true;
       entryRef.current = null;
-      cleanup();
+      cleanup?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

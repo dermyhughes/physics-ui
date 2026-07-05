@@ -128,3 +128,26 @@ html.tmbl-dragging * {
   color: var(--tmbl-color-text-muted);
   margin-bottom: var(--tmbl-space-2);
 }
+
+/* Dismiss button on dismissible loose parts (toasts) */
+.tmbl-loose__dismiss {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--tmbl-color-line);
+  background: var(--tmbl-paper-100);
+  color: var(--tmbl-ink-700);
+  font-size: 12px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+}
+.tmbl-loose__dismiss:hover {
+  background: var(--tmbl-orange-100);
+}

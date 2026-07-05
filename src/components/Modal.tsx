@@ -111,10 +111,8 @@ function ModalInner({ onClose, title, children }: ModalProps) {
     constraints.forEach((c, i) => {
       const line = lines[i];
       if (!line) return;
-      const attach = Matter.Vector.add(
-        entry.body.position,
-        Matter.Vector.rotate(c.pointB as Matter.Vector, entry.body.angle),
-      );
+      // Matter keeps pointB rotated in place as the body rotates.
+      const attach = Matter.Vector.add(entry.body.position, c.pointB as Matter.Vector);
       line.setAttribute('x1', String((c.pointA as Matter.Vector).x));
       line.setAttribute('y1', String((c.pointA as Matter.Vector).y));
       line.setAttribute('x2', String(attach.x));
