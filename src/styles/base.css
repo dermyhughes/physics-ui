@@ -58,6 +58,20 @@ html.tmbl-dragging * {
   opacity: 0;
 }
 
+/* Rubber ball period — the trailing full stop of a PhysicsText with trailingBall */
+.tmbl-rubber-period {
+  width: 0.28em;
+  height: 0.28em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #ff9e78, #e8542f 55%, #c02010);
+  box-shadow:
+    inset -1px -2px 3px rgba(0, 0, 0, 0.35),
+    0 1px 3px rgba(34, 30, 23, 0.5);
+  vertical-align: 0.1em;
+  margin-left: 0.05em;
+  margin-right: 0;
+}
+
 /* Brass ball ejected from a radio */
 .tmbl-radio-ball {
   border-radius: 50%;

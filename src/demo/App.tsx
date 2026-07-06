@@ -100,7 +100,7 @@ function Playground() {
 
           <section className="docs-section">
             <span className="docs-tag">Overview</span>
-            <PhysicsText as="h2" className="docs-hero-title">
+            <PhysicsText as="h2" className="docs-hero-title" viewportCollide trailingBall>
               A design system with consequences.
             </PhysicsText>
             <Card material="wood" className="docs-intro-card">

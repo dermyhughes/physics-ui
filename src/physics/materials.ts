@@ -86,4 +86,9 @@ export const CATEGORY = {
   WORLD: 0x0008, // walls, floor, conveyors
   /** Modals and toasts: their own layer, they only touch each other. */
   OVERLAY: 0x0010,
+  /**
+   * Scroll-tracking viewport ceiling. Bodies must explicitly include this in
+   * their mask to bounce off it — everything else passes straight through.
+   */
+  VIEWPORT_CEIL: 0x0020,
 } as const;

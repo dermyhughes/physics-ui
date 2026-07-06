@@ -191,7 +191,8 @@ export function VehicleProvider({
 
 export function useWorld(): WorldCtx {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('TUMBLE components must be rendered inside <PhysicsWorld>');
+  if (!ctx)
+    throw new Error('TUMBLE components must be rendered inside <PhysicsWorld>');
   return ctx;
 }
 
@@ -257,13 +258,37 @@ export function PhysicsWorld({
         label: 'wall',
       };
       const next = [
-        Matter.Bodies.rectangle(w / 2, h + WALL_THICK / 2, w + WALL_THICK * 4, WALL_THICK, {
-          ...opts,
-          label: 'floor',
-        }),
-        Matter.Bodies.rectangle(-WALL_THICK / 2, h / 2 - 1200, WALL_THICK, h + 3200, opts),
-        Matter.Bodies.rectangle(w + WALL_THICK / 2, h / 2 - 1200, WALL_THICK, h + 3200, opts),
-        Matter.Bodies.rectangle(w / 2, -2600 - WALL_THICK / 2, w + WALL_THICK * 4, WALL_THICK, opts),
+        Matter.Bodies.rectangle(
+          w / 2,
+          h + WALL_THICK / 2,
+          w + WALL_THICK * 4,
+          WALL_THICK,
+          {
+            ...opts,
+            label: 'floor',
+          },
+        ),
+        Matter.Bodies.rectangle(
+          -WALL_THICK / 2,
+          h / 2 - 1200,
+          WALL_THICK,
+          h + 3200,
+          opts,
+        ),
+        Matter.Bodies.rectangle(
+          w + WALL_THICK / 2,
+          h / 2 - 1200,
+          WALL_THICK,
+          h + 3200,
+          opts,
+        ),
+        Matter.Bodies.rectangle(
+          w / 2,
+          -2600 - WALL_THICK / 2,
+          w + WALL_THICK * 4,
+          WALL_THICK,
+          opts,
+        ),
       ];
       stable.current!.walls = next;
       Matter.Composite.add(engine.world, next);
@@ -286,7 +311,10 @@ export function PhysicsWorld({
         flow.forEach((entry) => {
           const hb = entry.hitboxEl ?? entry.el;
           const r = hb.getBoundingClientRect();
-          entry.home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+          entry.home = {
+            x: r.left - crect.left + r.width / 2,
+            y: r.top - crect.top + r.height / 2,
+          };
           if (entry.hitboxEl) {
             const er = entry.el.getBoundingClientRect();
             entry.el.style.transformOrigin = `${r.left - er.left + r.width / 2}px ${
@@ -303,7 +331,10 @@ export function PhysicsWorld({
             const off = (m as any).plugin.homeOffset as Vec;
             m.pointA = { x: home.x + off.x, y: home.y + off.y };
           });
-          if (entry.mounts.length === entry.mountCount && entry.mountCount > 0) {
+          if (
+            entry.mounts.length === entry.mountCount &&
+            entry.mountCount > 0
+          ) {
             Matter.Body.setPosition(entry.body, home);
             Matter.Body.setAngle(entry.body, 0);
             Matter.Body.setVelocity(entry.body, { x: 0, y: 0 });
@@ -321,6 +352,50 @@ export function PhysicsWorld({
       ro.disconnect();
     };
   }, [engine, registry]);
+
+  // --------------------------------------------------------- viewport ceiling
+  // A static wall that tracks the top of the visible viewport. Lives in its
+  // own VIEWPORT_CEIL collision category so only bodies that explicitly opt
+  // into it (mask includes VIEWPORT_CEIL) ever touch it — everything else
+  // passes through as if it doesn't exist.
+  useEffect(() => {
+    const container = containerRef.current!;
+    const w = container.clientWidth || 1200;
+    const ceil = Matter.Bodies.rectangle(
+      w / 2,
+      -WALL_THICK / 2,
+      w + WALL_THICK * 4,
+      WALL_THICK,
+      {
+        isStatic: true,
+        friction: 0.05,
+        restitution: 0.6,
+        collisionFilter: {
+          category: CATEGORY.VIEWPORT_CEIL,
+          // PART | LOOSE so the engine can match the wall against opt-in bodies.
+          // Whether a body actually collides is controlled by the OTHER side of
+          // the check: its mask must include VIEWPORT_CEIL (see Text.tsx).
+          mask: CATEGORY.PART | CATEGORY.LOOSE,
+        },
+        label: 'viewport-ceil',
+      },
+    );
+    Matter.Composite.add(engine.world, ceil);
+
+    // Sync wall Y to viewport top (in container-local coords) before each
+    // physics step so collisions happen at the right position regardless of
+    // scroll speed.
+    const sync = () => {
+      const y = -container.getBoundingClientRect().top - WALL_THICK / 2;
+      Matter.Body.setPosition(ceil, { x: ceil.position.x, y });
+    };
+    Matter.Events.on(engine, 'beforeUpdate', sync);
+
+    return () => {
+      Matter.Events.off(engine, 'beforeUpdate', sync);
+      Matter.Composite.remove(engine.world, ceil);
+    };
+  }, [engine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- loop
   useEffect(() => {
@@ -385,14 +460,19 @@ export function PhysicsWorld({
             dy = body.position.y - entry.home.y;
             rotAngle = body.angle;
           }
-          if (Math.abs(dx) < 0.08 && Math.abs(dy) < 0.08 && Math.abs(rotAngle) < 0.002) {
+          if (
+            Math.abs(dx) < 0.08 &&
+            Math.abs(dy) < 0.08 &&
+            Math.abs(rotAngle) < 0.002
+          ) {
             if (el.style.transform !== '') el.style.transform = '';
           } else {
             el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rotAngle.toFixed(4)}rad)`;
           }
         } else {
           el.style.transform = `translate(${(body.position.x - entry.size.w / 2).toFixed(2)}px, ${(
-            body.position.y - entry.size.h / 2
+            body.position.y -
+            entry.size.h / 2
           ).toFixed(2)}px) rotate(${body.angle.toFixed(4)}rad)`;
         }
       });
@@ -417,7 +497,10 @@ export function PhysicsWorld({
         // Bolted parts are weightless — but a rider only counts as bolted if
         // its vehicle still is; when the vehicle tears off, the whole assembly
         // gets heavy together.
-        if (fullyMounted(entry) && (!entry.parent || fullyMounted(entry.parent))) {
+        if (
+          fullyMounted(entry) &&
+          (!entry.parent || fullyMounted(entry.parent))
+        ) {
           b.force.y -= b.mass * g.y * g.scale;
           b.force.x -= b.mass * g.x * g.scale;
         }
@@ -434,7 +517,11 @@ export function PhysicsWorld({
           const speed = (belt.plugin as any)?.tumbleConveyor;
           // The crane's claw hovers over the belt constantly — dragging it
           // along would fly the crane like a kite.
-          if (typeof speed === 'number' && !rider.isStatic && rider.label !== 'claw') {
+          if (
+            typeof speed === 'number' &&
+            !rider.isStatic &&
+            rider.label !== 'claw'
+          ) {
             Matter.Sleeping.set(rider, false);
             Matter.Body.setVelocity(rider, {
               x: rider.velocity.x + (speed - rider.velocity.x) * 0.12,
@@ -463,9 +550,10 @@ export function PhysicsWorld({
 
         // One sound per pair, voiced by the faster participant.
         const loud =
-          Matter.Vector.magnitude(bodyA.velocity) > Matter.Vector.magnitude(bodyB.velocity)
-            ? a ?? b
-            : b ?? a;
+          Matter.Vector.magnitude(bodyA.velocity) >
+          Matter.Vector.magnitude(bodyB.velocity)
+            ? (a ?? b)
+            : (b ?? a);
         if (loud) {
           playImpact(
             MATERIALS[loud.material].voice,
@@ -501,7 +589,8 @@ export function PhysicsWorld({
       // Controls with their own pointer gestures (slider thumbs, toast ×)
       // opt out of body-dragging. This runs before React's delegated
       // handlers, so it can't rely on them calling stopPropagation.
-      if ((e.target as HTMLElement | null)?.closest?.('[data-tmbl-nodrag]')) return;
+      if ((e.target as HTMLElement | null)?.closest?.('[data-tmbl-nodrag]'))
+        return;
       primeAudio();
       const p = toLocal(e);
       const bodies = [...registry.values()]
@@ -511,7 +600,10 @@ export function PhysicsWorld({
       if (!hits.length) return;
       const body = hits[hits.length - 1];
       const entry = registry.get(body.id)!;
-      const local = Matter.Vector.rotate(Matter.Vector.sub(p, body.position), -body.angle);
+      const local = Matter.Vector.rotate(
+        Matter.Vector.sub(p, body.position),
+        -body.angle,
+      );
       const constraint = Matter.Constraint.create({
         pointA: p,
         bodyB: body,
@@ -523,7 +615,13 @@ export function PhysicsWorld({
       });
       Matter.Composite.add(engine.world, constraint);
       Matter.Sleeping.set(body, false);
-      dragging = { entry, constraint, startX: e.clientX, startY: e.clientY, moved: false };
+      dragging = {
+        entry,
+        constraint,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
       entry.el.dataset.dragging = 'true';
       // NB: no pointer capture — capturing retargets the compatibility click
       // event to the container, which would break every native control.
@@ -557,8 +655,14 @@ export function PhysicsWorld({
           ce.stopPropagation();
           ce.preventDefault();
         };
-        window.addEventListener('click', swallow, { capture: true, once: true });
-        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
+        window.addEventListener('click', swallow, {
+          capture: true,
+          once: true,
+        });
+        setTimeout(
+          () => window.removeEventListener('click', swallow, { capture: true }),
+          0,
+        );
       }
       dragging = null;
     };
@@ -593,7 +697,9 @@ export function PhysicsWorld({
       let parent = opts.parent ?? null;
       if (parent?.parent) {
         // One level of nesting only: a vehicle can't ride another vehicle.
-        console.warn('[tumble] nested vehicles are not supported; mounting to the page instead');
+        console.warn(
+          '[tumble] nested vehicles are not supported; mounting to the page instead',
+        );
         parent = null;
       }
 
@@ -617,7 +723,10 @@ export function PhysicsWorld({
         );
         home = { x: parent.home.x + rel.x, y: parent.home.y + rel.y };
       } else {
-        home = { x: r.left - crect.left + r.width / 2, y: r.top - crect.top + r.height / 2 };
+        home = {
+          x: r.left - crect.left + r.width / 2,
+          y: r.top - crect.top + r.height / 2,
+        };
       }
 
       // Spawn where the part currently renders (identical to home unless the
@@ -625,7 +734,10 @@ export function PhysicsWorld({
       const spawn: Vec = parent
         ? Matter.Vector.add(
             parent.body.position,
-            rot({ x: home.x - parent.home.x, y: home.y - parent.home.y }, parent.body.angle),
+            rot(
+              { x: home.x - parent.home.x, y: home.y - parent.home.y },
+              parent.body.angle,
+            ),
           )
         : home;
       const spawnAngle = parent ? parent.body.angle : 0;
@@ -635,7 +747,10 @@ export function PhysicsWorld({
       // negative collision group keeps the assembly from fighting itself.
       let group = 0;
       if (parent) {
-        if (!parent.body.collisionFilter.group || parent.body.collisionFilter.group >= 0) {
+        if (
+          !parent.body.collisionFilter.group ||
+          parent.body.collisionFilter.group >= 0
+        ) {
           parent.body.collisionFilter.group = Matter.Body.nextGroup(true);
         }
         group = parent.body.collisionFilter.group;
@@ -648,7 +763,8 @@ export function PhysicsWorld({
         isStatic: opts.isStatic ?? false,
         collisionFilter: {
           category: opts.isStatic ? CATEGORY.WORLD : CATEGORY.PART,
-          mask: CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
+          mask:
+            CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
           group,
         },
         label: opts.kind,
@@ -656,7 +772,12 @@ export function PhysicsWorld({
       };
       const body =
         opts.shape === 'circle'
-          ? Matter.Bodies.circle(spawn.x, spawn.y, Math.max(r.width, r.height) / 2, common)
+          ? Matter.Bodies.circle(
+              spawn.x,
+              spawn.y,
+              Math.max(r.width, r.height) / 2,
+              common,
+            )
           : Matter.Bodies.rectangle(spawn.x, spawn.y, r.width, r.height, {
               chamfer: { radius: Math.min(10, r.height / 4) },
               ...common,
@@ -683,7 +804,10 @@ export function PhysicsWorld({
               // and keeps it rotated with the parent from here on.
               bodyA: parent.body,
               pointA: rot(
-                { x: home.x - parent.home.x + off.x, y: home.y - parent.home.y + off.y },
+                {
+                  x: home.x - parent.home.x + off.x,
+                  y: home.y - parent.home.y + off.y,
+                },
                 parent.body.angle,
               ),
               bodyB: body,
@@ -761,10 +885,17 @@ export function PhysicsWorld({
           : spec.maskOverride != null
             ? { category: CATEGORY.LOOSE, mask: spec.maskOverride }
             : spec.debris
-              ? { category: CATEGORY.DEBRIS, mask: CATEGORY.WORLD | CATEGORY.DEBRIS }
+              ? {
+                  category: CATEGORY.DEBRIS,
+                  mask: CATEGORY.WORLD | CATEGORY.DEBRIS,
+                }
               : {
                   category: CATEGORY.LOOSE,
-                  mask: CATEGORY.PART | CATEGORY.LOOSE | CATEGORY.WORLD | CATEGORY.DEBRIS,
+                  mask:
+                    CATEGORY.PART |
+                    CATEGORY.LOOSE |
+                    CATEGORY.WORLD |
+                    CATEGORY.DEBRIS,
                 },
       };
       const body =
@@ -838,7 +969,8 @@ export function PhysicsWorld({
       // Pass 2 — re-bolt everything (riders back onto their vehicles).
       registry.forEach((entry) => {
         if (entry.mode !== 'flow' || entry.body.isStatic) return;
-        const { home, size, mountCount, mountStiffness, mountBreakAt, parent } = entry;
+        const { home, size, mountCount, mountStiffness, mountBreakAt, parent } =
+          entry;
         const offsets: Vec[] =
           mountCount === 1
             ? [{ x: 0, y: -size.h * 0.3 }]
@@ -851,7 +983,10 @@ export function PhysicsWorld({
           const c = parent
             ? Matter.Constraint.create({
                 bodyA: parent.body,
-                pointA: { x: home.x - parent.home.x + off.x, y: home.y - parent.home.y + off.y },
+                pointA: {
+                  x: home.x - parent.home.x + off.x,
+                  y: home.y - parent.home.y + off.y,
+                },
                 bodyB: entry.body,
                 pointB: { ...off },
                 stiffness: mountStiffness,
@@ -866,7 +1001,11 @@ export function PhysicsWorld({
                 damping: 0.1,
                 length: 0,
               });
-          (c as any).plugin = { homeOffset: off, breakAt: mountBreakAt, stiffness: mountStiffness };
+          (c as any).plugin = {
+            homeOffset: off,
+            breakAt: mountBreakAt,
+            stiffness: mountStiffness,
+          };
           entry.mounts.push(c);
           Matter.Composite.add(engine.world, c);
         }
@@ -893,7 +1032,10 @@ export function PhysicsWorld({
         resetSubs.add(cb);
         return () => resetSubs.delete(cb);
       },
-      getLoose: (kind) => [...registry.values()].filter((e) => e.mode === 'free' && e.kind === kind),
+      getLoose: (kind) =>
+        [...registry.values()].filter(
+          (e) => e.mode === 'free' && e.kind === kind,
+        ),
       resetMachine,
       setGravity: (scale: number) => {
         engine.gravity.y = scale;
@@ -922,7 +1064,11 @@ export function PhysicsWorld({
 
   return (
     <Ctx.Provider value={value}>
-      <div ref={containerRef} className={`tmbl-world ${className ?? ''}`} style={style}>
+      <div
+        ref={containerRef}
+        className={`tmbl-world ${className ?? ''}`}
+        style={style}
+      >
         {children}
         <LooseLayer />
       </div>
