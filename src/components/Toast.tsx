@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWorld } from '../physics/PhysicsWorld';
+import { relativeRect } from '../physics/geometry';
 import { playEffect } from '../physics/sound';
 
 export type ToastTone = 'info' | 'success' | 'warning';
@@ -46,16 +47,15 @@ export function Toaster({ className, capacity = 3 }: ToasterProps) {
     const container = containerRef.current;
     const el = stackRef.current?.querySelector<HTMLElement>(`[data-toast-id="${item.id}"]`);
     if (container && el) {
-      const r = el.getBoundingClientRect();
-      const c = container.getBoundingClientRect();
+      const r = relativeRect(el, container);
       spawnLoose({
         kind: 'toast',
         material: 'paper',
         shape: 'rect',
-        w: r.width,
-        h: r.height,
-        x: r.left - c.left + r.width / 2,
-        y: r.top - c.top + r.height / 2,
+        w: r.w,
+        h: r.h,
+        x: r.x + r.w / 2,
+        y: r.y + r.h / 2,
         ...kick,
         ttl: 6000,
         // Dismissed paperwork falls on its own layer — through the UI, not

@@ -10,6 +10,7 @@ import {
 } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { CATEGORY } from '../physics/materials';
+import { nextId } from '../physics/ids';
 import { playEffect } from '../physics/sound';
 
 export interface SelectOption {
@@ -24,8 +25,6 @@ export interface SelectProps {
   options: SelectOption[];
   placeholder?: string;
 }
-
-let selectCounter = 0;
 
 /**
  * A dropdown that takes its name literally. The trigger looks like any
@@ -129,7 +128,7 @@ function SelectPanel({
     el.style.transform = `translate(${spawnX - pw / 2}px, ${spawnY - ph / 2}px)`;
 
     const spec: LooseSpec = {
-      id: `select-${++selectCounter}`,
+      id: nextId('select'),
       kind: 'select-panel',
       // A hydraulic press is not made of wood. Heavy enough to win against
       // anything bolted beneath it.

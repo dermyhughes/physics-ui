@@ -1,6 +1,7 @@
 import { useRef, type InputHTMLAttributes } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { relativeRect } from '../physics/geometry';
 import { playEffect } from '../physics/sound';
 
 export interface InputProps
@@ -34,9 +35,8 @@ export function Input({ label, value, onChange, hint, className, ...rest }: Inpu
     const el = inputRef.current;
     const container = containerRef.current;
     if (!el || !container) return null;
-    const r = el.getBoundingClientRect();
-    const c = container.getBoundingClientRect();
-    return { x: r.left - c.left + r.width / 2, y: r.top - c.top + r.height / 2, w: r.width };
+    const r = relativeRect(el, container);
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2, w: r.w };
   };
 
   const dropGlyph = (char: string) => {

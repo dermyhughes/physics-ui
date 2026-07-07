@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { relativeRect } from '../physics/geometry';
 
 export interface PartsBinProps {
   label?: string;
@@ -30,13 +31,12 @@ export function PartsBin({ label = 'Scrap' }: PartsBinProps) {
     const interior = interiorRef.current;
     const container = containerRef.current;
     if (!interior || !container) return;
-    const ir = interior.getBoundingClientRect();
-    const cr = container.getBoundingClientRect();
+    const r = relativeRect(interior, container);
     const box = {
-      minX: ir.left - cr.left,
-      maxX: ir.right - cr.left,
-      minY: ir.top - cr.top,
-      maxY: ir.bottom - cr.top + 6,
+      minX: r.x,
+      maxX: r.x + r.w,
+      minY: r.y,
+      maxY: r.y + r.h + 6,
     };
     for (const kind of ['radio-ball', 'nut', 'tick', 'scrap', 'letter', 'shard']) {
       for (const part of getLoose(kind)) {

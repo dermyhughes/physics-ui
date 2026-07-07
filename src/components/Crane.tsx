@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFrame, useWorld, type BodyEntry, type LooseSpec } from '../physics/PhysicsWorld';
 import { CATEGORY } from '../physics/materials';
+import { relativeRect } from '../physics/geometry';
+import { nextId } from '../physics/ids';
 import { playEffect } from '../physics/sound';
 import { Button } from './Button';
 
@@ -18,7 +20,6 @@ type CraneState = 'idle' | 'seek' | 'descend' | 'grab' | 'raise' | 'carry' | 're
 
 const UNGRASPABLE = new Set(['claw', 'modal', 'toast', 'select-panel']);
 const REST_LEN = 56;
-let craneCounter = 0;
 
 /**
  * JANITOR UNIT 07 — bulk cleanup as a claw machine.
@@ -66,13 +67,12 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
     const clawEl = clawElRef.current;
     const container = containerRef.current;
     if (!rail || !clawEl || !container) return;
-    const crect = container.getBoundingClientRect();
-    const rrect = rail.getBoundingClientRect();
-    const railY = rrect.top - crect.top + rrect.height / 2;
-    const startX = rrect.left - crect.left + 40;
+    const r = relativeRect(rail, container);
+    const railY = r.y + r.h / 2;
+    const startX = r.x + 40;
 
     const spec: LooseSpec = {
-      id: `claw-${++craneCounter}`,
+      id: nextId('claw'),
       kind: 'claw',
       material: 'steel',
       shape: 'rect',
@@ -145,11 +145,10 @@ export function Crane({ auto = true, dropAt = 0.86, label = 'Janitor unit 07' }:
     if (!s.claw || !s.rope || !rail || !container) return;
     if (!registry.has(s.claw.id)) return;
 
-    const crect = container.getBoundingClientRect();
-    const rrect = rail.getBoundingClientRect();
-    const railY = rrect.top - crect.top + rrect.height / 2;
-    const minX = rrect.left - crect.left + 30;
-    const maxX = rrect.right - crect.left - 30;
+    const r = relativeRect(rail, container);
+    const railY = r.y + r.h / 2;
+    const minX = r.x + 30;
+    const maxX = r.x + r.w - 30;
     const dropX = minX + (maxX - minX) * dropAt;
     const maxLen = container.clientHeight - railY - 42;
     const now = performance.now();

@@ -8,6 +8,7 @@ import {
   type BodyEntry,
   type LooseSpec,
 } from '../physics/PhysicsWorld';
+import { nextId } from '../physics/ids';
 import { playEffect } from '../physics/sound';
 
 export interface ModalProps {
@@ -16,8 +17,6 @@ export interface ModalProps {
   title: string;
   children: ReactNode;
 }
-
-let modalCounter = 0;
 
 /**
  * A dialog lowered from the ceiling on two ropes. It drops in, bounces on its
@@ -58,7 +57,7 @@ function ModalInner({ onClose, title, children }: ModalProps) {
     el.style.transform = `translate(${spawnX - pw / 2}px, ${spawnY - ph / 2}px)`;
 
     const spec: LooseSpec = {
-      id: `modal-${++modalCounter}`,
+      id: nextId('modal'),
       kind: 'modal',
       material: 'wood',
       shape: 'rect',

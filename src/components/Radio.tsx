@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { relativeCenter } from '../physics/geometry';
 import { playEffect } from '../physics/sound';
 
 interface RadioGroupCtx {
@@ -74,9 +75,7 @@ export function Radio({ value, children, disabled }: RadioProps) {
     const well = wellRef.current;
     const container = containerRef.current;
     if (!well || !container) return null;
-    const wr = well.getBoundingClientRect();
-    const cr = container.getBoundingClientRect();
-    return { x: wr.left - cr.left + wr.width / 2, y: wr.top - cr.top + wr.height / 2 };
+    return relativeCenter(well, container);
   };
 
   // Deselected → the ball physically drops out of the dial.

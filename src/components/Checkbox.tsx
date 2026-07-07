@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { relativeRect } from '../physics/geometry';
 import { playEffect } from '../physics/sound';
 
 export interface CheckboxProps {
@@ -40,16 +41,15 @@ export function Checkbox({ checked, onChange, children, disabled }: CheckboxProp
   const toggle = (next: boolean) => {
     if (!next && boxRef.current && containerRef.current) {
       // Ejected tick becomes debris.
-      const br = boxRef.current.getBoundingClientRect();
-      const cr = containerRef.current.getBoundingClientRect();
+      const r = relativeRect(boxRef.current, containerRef.current);
       spawnLoose({
         kind: 'tick',
         material: 'wood',
         shape: 'rect',
         w: 18,
         h: 18,
-        x: br.left - cr.left + br.width / 2,
-        y: br.top - cr.top + br.height / 2 - 6,
+        x: r.x + r.w / 2,
+        y: r.y + r.h / 2 - 6,
         vx: (Math.random() - 0.5) * 5,
         vy: -7,
         spin: (Math.random() - 0.5) * 0.6,

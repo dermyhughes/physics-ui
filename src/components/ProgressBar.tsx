@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import { relativeRect } from '../physics/geometry';
 import { playEffect } from '../physics/sound';
 
 export interface ProgressBarProps {
@@ -52,8 +53,7 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
     const track = trackRef.current;
     const container = containerRef.current;
     if (!track || !container) return;
-    const tr = track.getBoundingClientRect();
-    const cr = container.getBoundingClientRect();
+    const tr = relativeRect(track, container);
     for (let i = 0; i < count; i++) {
       spawnLoose({
         kind: 'radio-ball', // spilled progress is still a perfectly good ball
@@ -61,8 +61,8 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
         shape: 'circle',
         w: BALL,
         h: BALL,
-        x: tr.left - cr.left + Math.random() * tr.width,
-        y: tr.top - cr.top + tr.height / 2,
+        x: tr.x + Math.random() * tr.w,
+        y: tr.y + tr.h / 2,
         vx: (Math.random() - 0.5) * 4,
         vy: vyBase - Math.random() * 2,
         className: 'tmbl-radio-ball',
@@ -75,8 +75,7 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
     const track = trackRef.current;
     const container = containerRef.current;
     if (!track || !container) return;
-    const tr = track.getBoundingClientRect();
-    const cr = container.getBoundingClientRect();
+    const tr = relativeRect(track, container);
     playEffect('pop', 0.4);
     for (let i = 0; i < 2; i++) {
       spawnLoose({
@@ -85,8 +84,8 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
         shape: 'circle',
         w: BALL,
         h: BALL,
-        x: tr.right - cr.left - 4 + Math.random() * 8,
-        y: tr.top - cr.top - 4,
+        x: tr.x + tr.w - 4 + Math.random() * 8,
+        y: tr.y - 4,
         vx: 1.5 + Math.random() * 2,
         vy: -1 - Math.random(),
         className: 'tmbl-radio-ball',
