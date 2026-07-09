@@ -1,13 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Button,
   Card,
   Checkbox,
-  Conveyor,
-  Crane,
   Input,
   Modal,
-  PartsBin,
   PhysicsExempt,
   PhysicsText,
   PhysicsWorld,
@@ -23,119 +20,231 @@ import {
   toast,
 } from '../index';
 import { useWorld } from '../physics/PhysicsWorld';
-import type { MaterialName } from '../physics/materials';
+import { MATERIALS, type MaterialName } from '../physics/materials';
 
 export default function App() {
   return (
-    <PhysicsWorld className="shop">
-      <Playground />
+    <PhysicsWorld className="docs">
+      <Docs />
     </PhysicsWorld>
   );
 }
 
-type DocTab = 'getting-started' | 'materials' | 'components' | 'machinery';
+/* ────────────────────────────────────────────────────────────── helpers */
 
-function Playground() {
-  const { setGravity, setSound, soundOn, resetMachine, spawnLoose, getBounds, containerRef } = useWorld();
-  const [tab, setTab] = useState<DocTab>('getting-started');
+const ALL_MATERIALS = Object.keys(MATERIALS) as MaterialName[];
 
-  // Ref for targeting the glass card with a horizontally-fired steel slab
-  const glassCardRef = useRef<HTMLDivElement>(null);
+/** Chip row for switching a live example's material. Plain DOM — inert. */
+function MaterialPicker({
+  value,
+  onChange,
+  exclude = [],
+}: {
+  value: MaterialName;
+  onChange: (m: MaterialName) => void;
+  exclude?: MaterialName[];
+}) {
+  return (
+    <div className="docs-matpicker" role="group" aria-label="Material">
+      <span className="docs-matpicker__label">material</span>
+      {ALL_MATERIALS.filter((m) => !exclude.includes(m)).map((m) => (
+        <button
+          key={m}
+          type="button"
+          className="docs-matpicker__chip"
+          data-material={m}
+          data-active={m === value || undefined}
+          aria-pressed={m === value}
+          onClick={() => onChange(m)}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-  // Components tab state
+/** One component's documentation entry: name, real use, quirk, live demo. */
+function Entry({
+  id,
+  name,
+  use,
+  quirk,
+  children,
+  aside,
+}: {
+  id: string;
+  name: string;
+  use: string;
+  quirk: string;
+  children: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <section id={id} className="docs-entry">
+      <h3 className="docs-entry__name">{name}</h3>
+      <dl className="docs-entry__meta">
+        <div className="docs-entry__meta-row">
+          <dt>Use it for</dt>
+          <dd>{use}</dd>
+        </div>
+        <div className="docs-entry__meta-row">
+          <dt>The physics</dt>
+          <dd>{quirk}</dd>
+        </div>
+      </dl>
+      <div className="docs-entry__demo">{children}</div>
+      {aside}
+    </section>
+  );
+}
+
+function NavLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <a className="docs-nav__link" href={`#${to}`}>
+      {children}
+    </a>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────── the docs */
+
+const prefersDark = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+function Docs() {
+  const { setSound, soundOn, resetMachine } = useWorld();
+  const [theme, setTheme] = useState<'light' | 'dark'>(prefersDark() ? 'dark' : 'light');
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  /* form-ish demo state */
   const [name, setName] = useState('');
-  const [callsign, setCallsign] = useState('');
-  const [shift, setShift] = useState<string | null>('day');
-  const [union, setUnion] = useState(true);
-  const [goggles, setGoggles] = useState(false);
-  const [department, setDepartment] = useState<string | null>(null);
+  const [dept, setDept] = useState<string | null>(null);
   const [torque, setTorque] = useState(40);
-  const [submitted, setSubmitted] = useState(false);
-
-  // Machinery tab state
-  const [zeroG, setZeroG] = useState(false);
   const [psi, setPsi] = useState(3);
   const [quota, setQuota] = useState(55);
-  const [terms, setTerms] = useState(false);
-  const [crateFragile, setCrateFragile] = useState(true);
-  const [crateUpright, setCrateUpright] = useState(false);
+  const [shift, setShift] = useState<string | null>('day');
+  const [terms, setTerms] = useState(true);
+  const [goggles, setGoggles] = useState(false);
+  const [alerts, setAlerts] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [demoTab, setDemoTab] = useState('spec');
 
-  const spawnMaterial = (material: MaterialName) => {
-    const { w } = getBounds();
-    const x = w * 0.2 + Math.random() * w * 0.6;
-    const isCircle = material === 'rubber' || material === 'brass';
-    const size = {
-      steel:  { w: 44, h: 28 },
-      rubber: { w: 28, h: 28 },
-      paper:  { w: 72, h: 48 },
-      wood:   { w: 38, h: 26 },
-      brass:  { w: 22, h: 22 },
-      glass:  { w: 36, h: 24 },
-    }[material];
-    spawnLoose({
-      kind: isCircle ? 'loose-ball' : 'loose-slab',
-      material,
-      shape: isCircle ? 'circle' : 'rect',
-      w: size.w,
-      h: size.h,
-      x,
-      y: -50,
-      vx: (Math.random() - 0.5) * 6,
-      vy: material === 'paper' ? 1 : 3,
-      spin: material === 'paper' ? (Math.random() - 0.5) * 0.25 : 0,
-      className: `docs-loose docs-loose--${material}`,
-    });
-  };
+  /* per-entry material overrides (key remounts rebuild the body) */
+  const [cardMat, setCardMat] = useState<MaterialName>('wood');
+  const [checkMat, setCheckMat] = useState<MaterialName>('wood');
+  const [inputMat, setInputMat] = useState<MaterialName>('wood');
+  const [buttonMat, setButtonMat] = useState<MaterialName>('steel');
 
-  const dropPart = () => {
-    const materials: MaterialName[] = ['brass', 'steel', 'rubber'];
-    spawnMaterial(materials[Math.floor(Math.random() * materials.length)]);
-  };
+  return (
+    <div className="docs-shell">
+      <header className="docs-header">
+        <div className="docs-brand">
+          <a className="docs-logo" href="#top">
+            TUMBLE<span className="docs-logo__reg">®</span>
+          </a>
+          <span className="docs-badge">v0.1 · docs</span>
+        </div>
+        <div className="docs-header-controls">
+          <Toggle checked={theme === 'dark'} onChange={(v) => setTheme(v ? 'dark' : 'light')}>
+            Night shift
+          </Toggle>
+          <Toggle checked={soundOn} onChange={setSound}>
+            Sound
+          </Toggle>
+          <PhysicsExempt>
+            <Button variant="danger" size="sm" onClick={resetMachine}>
+              Reset
+            </Button>
+          </PhysicsExempt>
+        </div>
+        <div className="docs-toaster">
+          {/* No capacity: this demo never evicts. The pile is the point. */}
+          <Toaster capacity={Infinity} />
+        </div>
+      </header>
 
-  /* ── Getting Started ─────────────────────────────────────────── */
-  const gettingStartedSection = (
-    <main className="docs-content">
-      <div className="docs-two-col">
-        <div className="docs-main-col">
+      <div className="docs-body">
+        <nav className="docs-nav" aria-label="Documentation">
+          <span className="docs-nav__group">Foundations</span>
+          <NavLink to="introduction">Introduction</NavLink>
+          <NavLink to="surfaces">Surfaces &amp; mass</NavLink>
+          <NavLink to="getting-started">Getting started</NavLink>
+          <NavLink to="tokens">Tokens</NavLink>
+          <NavLink to="theming">Theming</NavLink>
+          <NavLink to="materials">Materials</NavLink>
+          <span className="docs-nav__group">Components</span>
+          <NavLink to="button">Button</NavLink>
+          <NavLink to="input">Input</NavLink>
+          <NavLink to="select">Select</NavLink>
+          <NavLink to="slider">Slider</NavLink>
+          <NavLink to="stepper">Stepper</NavLink>
+          <NavLink to="checkbox">Checkbox</NavLink>
+          <NavLink to="radio">Radio</NavLink>
+          <NavLink to="toggle">Toggle</NavLink>
+          <NavLink to="progress">ProgressBar</NavLink>
+          <NavLink to="card">Card</NavLink>
+          <NavLink to="modal">Modal</NavLink>
+          <NavLink to="toast">Toast</NavLink>
+          <NavLink to="tabs">Tabs</NavLink>
+          <NavLink to="text">PhysicsText</NavLink>
+        </nav>
 
-          <section className="docs-section">
-            <span className="docs-tag">Overview</span>
-            <PhysicsText as="h2" className="docs-hero-title" viewportCollide trailingBall>
+        <main className="docs-main" id="top">
+          {/* ─────────────────────────── hero */}
+          <section id="introduction" className="docs-hero">
+            <span className="docs-tag">Introduction</span>
+            <PhysicsText as="h1" className="docs-hero-title" viewportCollide trailingBall>
               A design system with consequences.
             </PhysicsText>
-            <Card material="wood" className="docs-intro-card">
-              <p className="docs-p">
-                Every component is a rigid body in a shared 2D physics world. The UI lays out like
-                any component library — then gravity, collision, and the user's throwing arm get a
-                vote.
-              </p>
-              <p className="docs-p">
-                React + Matter.js. Components render as <strong>real DOM</strong> (native inputs,
-                buttons, labels — focus rings, keyboards and screen readers all work). Each
-                component registers a rigid body bolted to its layout position by two breakable
-                spring mounts. At rest: a boring page. Pull something 90px off-station and a bolt
-                shears.
-              </p>
-            </Card>
+            <p className="docs-lead">
+              TUMBLE is a token-driven, themeable, accessible React component library in which
+              every component is also a rigid body in a shared 2D physics world. At rest it lays
+              out like any other design system. Then gravity, collision, and your throwing arm
+              get a vote. Grab anything on this page — including that headline — and find out.
+            </p>
+            <p className="docs-lead docs-lead--muted">
+              Real DOM, native inputs, focus rings, screen-reader semantics. Take one component,
+              put it on your site, and give someone a small moment of delight. Build a whole app
+              out of them and may whatever you believe in help your users.
+            </p>
           </section>
 
-          <section className="docs-section">
-            <span className="docs-tag">Installation</span>
-            <h3 className="docs-h3">Install</h3>
-            <Card material="steel" className="docs-code-card">
-              <pre className="docs-pre"><code>npm install tumble-ui</code></pre>
-            </Card>
-            <p className="docs-fine">Installation card is stamped in steel — dense, barely bounces. Drag it.</p>
+          {/* ─────────────────────────── philosophy */}
+          <section id="surfaces" className="docs-section">
+            <span className="docs-tag">Foundations</span>
+            <h2 className="docs-h2">Surfaces &amp; mass</h2>
+            <p className="docs-p">
+              Material Design famously grounds its elevation system in how physical paper behaves
+              under light: surfaces cast shadows proportional to their height, and those shadows
+              tell you what is above what. TUMBLE takes the same premise and simply refuses to
+              stop. If surfaces are physical, they have <strong>mass</strong>. If they have mass,
+              they have momentum, restitution, and shear limits on their mounting bolts.
+            </p>
+            <ul className="docs-list">
+              <li><strong>Elevation is literal.</strong> A modal is above your form because it is hanging over it on two ropes.</li>
+              <li><strong>Every part is bolted to its layout position</strong> by two breakable spring mounts. Tolerance is ±90px; past that, a bolt shears and the part dangles like a broken shop sign.</li>
+              <li><strong>State changes are mechanical events.</strong> A radio's selection dot is a brass ball that physically leaves when deselected. Progress is a trough of ball bearings that spills if you don't keep it level.</li>
+              <li><strong>Shadows follow from the simulation</strong> — a part torn free casts the drop shadow of a thing in flight, because it is one.</li>
+            </ul>
+            <p className="docs-p">
+              It is a valid design system: tokens, semantic layers, themes, composable primitives,
+              keyboard and screen-reader support. It is also art. Both statements are load-bearing.
+            </p>
           </section>
 
-          <section className="docs-section">
-            <span className="docs-tag">Usage</span>
-            <h3 className="docs-h3">Quick start</h3>
-            <Card material="wood" className="docs-code-card">
-              <pre className="docs-pre"><code>{`import {
-  PhysicsWorld, Card, Input,
-  RadioGroup, Radio, Button,
-} from 'tumble-ui';
+          {/* ─────────────────────────── getting started */}
+          <section id="getting-started" className="docs-section">
+            <span className="docs-tag">Foundations</span>
+            <h2 className="docs-h2">Getting started</h2>
+            <Card material="steel" title="Install" className="docs-code-card">
+              <pre className="docs-pre" data-tmbl-nodrag=""><code>npm install tumble-ui</code></pre>
+            </Card>
+            <Card material="wood" title="Usage" className="docs-code-card">
+              <pre className="docs-pre" data-tmbl-nodrag=""><code>{`import { PhysicsWorld, Card, Input, Button } from 'tumble-ui';
 import 'tumble-ui/styles.css';
 
 function App() {
@@ -150,548 +259,389 @@ function App() {
 }`}</code></pre>
             </Card>
             <p className="docs-fine">
-              <code className="docs-code-inline">PhysicsWorld</code> owns the engine, walls, pointer drag and collision
-              routing. Components must live inside it.
+              <code className="docs-code-inline">PhysicsWorld</code> owns the engine, walls,
+              pointer drag and collision routing. Components must live inside it. These two cards
+              are steel and wood — pick them up and feel the difference.
             </p>
           </section>
 
-          <section className="docs-section">
-            <span className="docs-tag">Concept</span>
-            <h3 className="docs-h3">Two tiers</h3>
-            <div className="docs-tier-grid">
-              <Card material="wood" title="Component tier">
-                <ul className="docs-list">
-                  <li>Button, Input, Select, Slider, Stepper, Radio, Checkbox, Toggle, Card, Modal, Toast, Text.</li>
-                  <li>Read as standard UI at rest.</li>
-                  <li>The twist lives inside the interaction.</li>
-                </ul>
+          {/* ─────────────────────────── tokens */}
+          <section id="tokens" className="docs-section">
+            <span className="docs-tag">Foundations</span>
+            <h2 className="docs-h2">Tokens</h2>
+            <p className="docs-p">
+              Everything visual is a CSS custom property under{' '}
+              <code className="docs-code-inline">--tmbl-*</code> in{' '}
+              <code className="docs-code-inline">tokens.css</code>, in three layers:
+            </p>
+            <div className="docs-token-grid">
+              <Card title="1 · Primitives" material="paper">
+                <p className="docs-p docs-p--sm">
+                  Raw palette scales: <code className="docs-code-inline">--tmbl-paper-050…300</code>,{' '}
+                  <code className="docs-code-inline">--tmbl-ink-300…900</code>, safety orange, brass,
+                  blueprint blue. Plus type scale, 4px spacing, radii, motion easings.
+                </p>
               </Card>
-              <Card material="steel" title="Machinery tier">
-                <ul className="docs-list">
-                  <li>Conveyor, Crane, Magnet, PartsBin.</li>
-                  <li>Openly mechanical. Opt-in scenery.</li>
-                  <li>Gives loose parts somewhere to go.</li>
-                </ul>
+              <Card title="2 · Semantic" material="paper">
+                <p className="docs-p docs-p--sm">
+                  What a color means: <code className="docs-code-inline">--tmbl-color-bg</code>,{' '}
+                  <code className="docs-code-inline">-surface</code>,{' '}
+                  <code className="docs-code-inline">-text</code>,{' '}
+                  <code className="docs-code-inline">-action</code>,{' '}
+                  <code className="docs-code-inline">-focus</code>,{' '}
+                  <code className="docs-code-inline">-danger</code>. Themes override this layer.
+                </p>
+              </Card>
+              <Card title="3 · Material" material="brass">
+                <p className="docs-p docs-p--sm">
+                  What a part is stamped from. <code className="docs-code-inline">data-material</code>{' '}
+                  sets <code className="docs-code-inline">--tmbl-mat-surface</code> (a tint mixed into
+                  the theme surface) and, in <code className="docs-code-inline">materials.ts</code>,
+                  its density, restitution, shatter point and impact voice.
+                </p>
               </Card>
             </div>
           </section>
 
-        </div>
-
-        <aside className="docs-side-col">
-          <Card material="glass" title="Try it now">
-            <p className="docs-p docs-p--sm">
-              Grab any element on this page and throw it. This card is <strong>glass</strong> — above
-              its impact tolerance it will shatter. The installation card (steel) across the page weighs
-              enough to break it.
+          {/* ─────────────────────────── theming */}
+          <section id="theming" className="docs-section">
+            <span className="docs-tag">Foundations</span>
+            <h2 className="docs-h2">Theming</h2>
+            <p className="docs-p">
+              Set <code className="docs-code-inline">data-theme="dark"</code> on{' '}
+              <code className="docs-code-inline">&lt;html&gt;</code> and the paper/ink scales swap
+              roles — the workshop goes on night shift. Accent colors stay on duty; focus blue gets
+              brighter because focus must always win. Material tints are mixed into the theme
+              surface with <code className="docs-code-inline">color-mix()</code>, so a brass
+              checkbox stays brassy at 2am. Try the “Night shift” toggle in the header.
             </p>
-          </Card>
-
-          <Card material="wood" title="What just happened">
-            <ul className="docs-list docs-list--sm">
-              <li>Every element here is a rigid body.</li>
-              <li>Pull hard: bolts shear. One left and it dangles.</li>
-              <li>Drop something heavy on a Button to fire its onClick.</li>
-              <li>Shake a filled Input to spill the letters.</li>
-              <li>The tagline above is PhysicsText — each word has mass.</li>
-            </ul>
-          </Card>
-
-          <Card material="paper" title="Design tokens">
-            <p className="docs-p docs-p--sm">
-              This card is <strong>paper</strong> — near-weightless. Throw it across the page and watch
-              it drift. Every material token lives in <code className="docs-code-inline">tokens.css</code> under{' '}
-              <code className="docs-code-inline">--tmbl-*</code>.
+            <p className="docs-fine">
+              Shadows do not flip with the theme: shadows are cast by mass, not by fashion
+              (<code className="docs-code-inline">--tmbl-shade</code>).
             </p>
-          </Card>
-        </aside>
-      </div>
-    </main>
-  );
+          </section>
 
-  /* ── Materials ───────────────────────────────────────────────── */
-  const materialsSection = (
-    <main className="docs-content">
-      <div className="docs-section-header">
-        <span className="docs-tag">Reference</span>
-        <PhysicsText as="h2" className="docs-h2">Materials</PhysicsText>
-        <p className="docs-lead">
-          Every part is stamped from a material that sets density, restitution, friction, shatter
-          tolerance and its impact voice. <strong>The cards below are the materials</strong> — pick them up
-          and feel the difference.
-        </p>
-      </div>
-
-      <div className="docs-materials-grid">
-
-        <Card material="steel" title="Steel" className="docs-mat-card">
-          <dl className="docs-mat-props">
-            <div className="docs-mat-row"><dt>density</dt><dd>0.0035</dd></div>
-            <div className="docs-mat-row"><dt>restitution</dt><dd>0.08</dd></div>
-            <div className="docs-mat-row"><dt>voice</dt><dd>thud</dd></div>
-          </dl>
-          <p className="docs-mat-desc">
-            Dense, dead drop. Barely bounces. Buttons, machine frames, the installation
-            card in Getting Started. Pick this up and drop it — hear the thud, watch it
-            barely bounce.
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => spawnMaterial('steel')}>
-            Drop steel slab
-          </Button>
-        </Card>
-
-        <Card material="rubber" title="Rubber" className="docs-mat-card">
-          <dl className="docs-mat-props">
-            <div className="docs-mat-row"><dt>density</dt><dd>0.0008</dd></div>
-            <div className="docs-mat-row"><dt>restitution</dt><dd>0.92</dd></div>
-            <div className="docs-mat-row"><dt>voice</dt><dd>boing</dd></div>
-          </dl>
-          <p className="docs-mat-desc">
-            The superball. Restitution of 0.92 is nearly perfect elastic. Throw this card
-            against the floor or wall and step back. The drop button spawns a loose rubber
-            ball that will bounce until it finds a corner.
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => spawnMaterial('rubber')}>
-            Drop rubber ball
-          </Button>
-        </Card>
-
-        <Card material="paper" title="Paper" className="docs-mat-card">
-          <dl className="docs-mat-props">
-            <div className="docs-mat-row"><dt>density</dt><dd>0.0003</dd></div>
-            <div className="docs-mat-row"><dt>frictionAir</dt><dd>0.06</dd></div>
-            <div className="docs-mat-row"><dt>voice</dt><dd>flutter</dd></div>
-          </dl>
-          <p className="docs-mat-desc">
-            Near-weightless, high air drag. Drifts when thrown — it won't fall straight down.
-            PhysicsText words use this material: each word has mass but floats. See the tagline
-            in Getting Started.
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => spawnMaterial('paper')}>
-            Drop paper sheet
-          </Button>
-        </Card>
-
-        <Card material="wood" title="Wood" className="docs-mat-card">
-          <dl className="docs-mat-props">
-            <div className="docs-mat-row"><dt>density</dt><dd>0.0012</dd></div>
-            <div className="docs-mat-row"><dt>restitution</dt><dd>0.25</dd></div>
-            <div className="docs-mat-row"><dt>voice</dt><dd>knock</dd></div>
-          </dl>
-          <p className="docs-mat-desc">
-            The workshop default. Most Cards and Inputs are wood. Solid but not heavy — a
-            satisfying knock on impact, a reasonable bounce. If you don't specify a material,
-            you get wood.
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => spawnMaterial('wood')}>
-            Drop wood block
-          </Button>
-        </Card>
-
-        <Card material="brass" title="Brass" className="docs-mat-card">
-          <dl className="docs-mat-props">
-            <div className="docs-mat-row"><dt>density</dt><dd>0.0028</dd></div>
-            <div className="docs-mat-row"><dt>restitution</dt><dd>0.42</dd></div>
-            <div className="docs-mat-row"><dt>voice</dt><dd>ding</dd></div>
-          </dl>
-          <p className="docs-mat-desc">
-            Heavy and ringy. Radio selection dots are brass balls — change a selection and the
-            old ball ejects into the world. An empty dial is gently magnetic and will catch a
-            slow ball that rolls in, selecting that option.
-          </p>
-          <Button size="sm" variant="secondary" onClick={() => spawnMaterial('brass')}>
-            Drop brass ball
-          </Button>
-        </Card>
-
-        <div ref={glassCardRef}>
-          <Card material="glass" title="Glass" className="docs-mat-card">
-            <dl className="docs-mat-props">
-              <div className="docs-mat-row"><dt>density</dt><dd>0.001</dd></div>
-              <div className="docs-mat-row"><dt>shatterAt</dt><dd>11 px/tick</dd></div>
-              <div className="docs-mat-row"><dt>voice</dt><dd>clink</dd></div>
-            </dl>
-            <p className="docs-mat-desc">
-              Brittle. Above its impact tolerance, a glass card shatters and shows a COMPONENT
-              DAMAGED placard until repaired. This card is glass — it can shatter too.
+          {/* ─────────────────────────── materials */}
+          <section id="materials" className="docs-section">
+            <span className="docs-tag">Foundations</span>
+            <h2 className="docs-h2">Materials</h2>
+            <p className="docs-p">
+              The token layer of the physics. Every component takes a{' '}
+              <code className="docs-code-inline">material</code> prop that sets its density,
+              restitution, friction, shatter tolerance, impact voice — and its finish.{' '}
+              <strong>These cards are the materials.</strong> Pick them up.
             </p>
-            <Button size="sm" variant="secondary" onClick={() => {
-              const cEl = containerRef.current;
-              const gEl = glassCardRef.current;
-              if (!cEl || !gEl) return;
-              const cRect = cEl.getBoundingClientRect();
-              const gRect = gEl.getBoundingClientRect();
-              const { w } = getBounds();
-              // Fire from the right edge at the glass card's centre height.
-              // Glass is the rightmost card so the slab hits it first,
-              // bypassing Paper which is directly above it.
-              const targetY = gRect.top - cRect.top + gRect.height / 2;
-              spawnLoose({
-                kind: 'loose-slab',
-                material: 'steel',
-                shape: 'rect',
-                w: 44, h: 28,
-                x: w - 10,
-                y: targetY,
-                vx: -20,
-                vy: (Math.random() - 0.5) * 2,
-                className: 'docs-loose docs-loose--steel',
-              });
-            }}>
-              Fire steel → (to shatter)
-            </Button>
-          </Card>
-        </div>
+            <div className="docs-materials-grid">
+              {ALL_MATERIALS.map((m) => (
+                <Card key={m} material={m} title={m[0].toUpperCase() + m.slice(1)} className="docs-mat-card">
+                  <dl className="docs-mat-props">
+                    <div className="docs-mat-row"><dt>density</dt><dd>{MATERIALS[m].density}</dd></div>
+                    <div className="docs-mat-row"><dt>restitution</dt><dd>{MATERIALS[m].restitution}</dd></div>
+                    <div className="docs-mat-row"><dt>voice</dt><dd>{MATERIALS[m].voice}</dd></div>
+                    {Number.isFinite(MATERIALS[m].shatterAt) && (
+                      <div className="docs-mat-row"><dt>shatters at</dt><dd>{MATERIALS[m].shatterAt} px/tick</dd></div>
+                    )}
+                  </dl>
+                  <p className="docs-mat-desc">{MATERIAL_COPY[m]}</p>
+                </Card>
+              ))}
+            </div>
+          </section>
 
-      </div>
-
-      <section className="docs-section docs-section--table">
-        <h3 className="docs-h3">Reference table</h3>
-        <Card material="wood" className="docs-table-card">
-          <table className="docs-table">
-            <thead>
-              <tr>
-                <th>Material</th>
-                <th>Feel</th>
-                <th>Voice</th>
-                <th>Shatters?</th>
-                <th>Default use</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td><code>steel</code></td><td>dense, dead drop</td><td>thud</td><td>—</td><td>Button, machine frames</td></tr>
-              <tr><td><code>wood</code></td><td>workshop default</td><td>knock</td><td>—</td><td>Card, Input (default)</td></tr>
-              <tr><td><code>rubber</code></td><td>superball</td><td>boing</td><td>—</td><td>bumpers, toggle knobs</td></tr>
-              <tr><td><code>brass</code></td><td>heavy, ringy</td><td>ding</td><td>—</td><td>radio balls, fittings</td></tr>
-              <tr><td><code>glass</code></td><td>brittle</td><td>clink</td><td>above 11 px/t</td><td>notice cards</td></tr>
-              <tr><td><code>paper</code></td><td>near-weightless</td><td>flutter</td><td>—</td><td>labels, PhysicsText</td></tr>
-            </tbody>
-          </table>
-        </Card>
-      </section>
-    </main>
-  );
-
-  /* ── Components ──────────────────────────────────────────────── */
-  const componentsSection = (
-    <main className="docs-content">
-      <div className="docs-two-col">
-        <section className="docs-main-col">
-
-          <div className="docs-section-header">
+          {/* ─────────────────────────── components */}
+          <section className="docs-section docs-section--components">
             <span className="docs-tag">Reference</span>
             <h2 className="docs-h2">Components</h2>
-            <p className="docs-lead">
-              Standard UI components with physics built in. Every element below is a rigid body —
-              draggable, throwable, and fully interactive.
+            <p className="docs-p">
+              Each entry states the component's honest, real-world job and its physics. Every live
+              example below is genuinely interactive — and genuinely draggable.
             </p>
-          </div>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Input</h3>
-            <p className="docs-p docs-p--sm">
-              Typed glyphs rain into the field as falling characters. Shake the component to spill the
-              letters and clear the field.
-            </p>
-            <div className="docs-bench-grid">
-              <Input
-                label="Full name"
-                value={name}
-                onChange={setName}
-                placeholder="e.g. R. Goldberg"
-                hint="shake to empty"
-                autoComplete="off"
-              />
-              <Input
-                label="Callsign"
-                value={callsign}
-                onChange={setCallsign}
-                placeholder="PINBALL-01"
-                autoComplete="off"
-              />
-            </div>
-          </div>
+            <Entry
+              id="button"
+              name="Button"
+              use="Primary, secondary and destructive actions. Three sizes, real <button> semantics."
+              quirk="Clicking fires a shockwave that shoves neighbouring components. Anything heavy landing on it presses it for real — onClick fires. The magnetic variant, held down, recalls every loose metal part on the page."
+            >
+              <div className="docs-demo-row" key={`btn-${buttonMat}`}>
+                <Button size="lg" material={buttonMat} onClick={() => toast('Order confirmed. Nothing was harmed. Yet.', 'success')}>
+                  Confirm order
+                </Button>
+                <Button variant="secondary" material={buttonMat} magnetic>
+                  Recall parts (hold)
+                </Button>
+                <Button variant="danger" size="sm" material={buttonMat} onClick={() => toast('Deleted. It fell somewhere.', 'warning')}>
+                  Delete
+                </Button>
+              </div>
+              <MaterialPicker value={buttonMat} onChange={setButtonMat} />
+            </Entry>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Select</h3>
-            <p className="docs-p docs-p--sm">
-              A hydraulic press. The steel options panel is driven down on two pistons and physically
-              shoves the UI beneath it aside. Drag the trigger while open and the panel swings along.
-            </p>
-            <div className="docs-bench-grid docs-bench-grid--wide">
-              <Select
-                label="Department"
-                value={department}
-                onChange={setDepartment}
-                placeholder="Assign me anywhere"
-                options={[
-                  { value: 'ballistics', label: 'Ballistics' },
-                  { value: 'pendulums', label: 'Pendulums' },
-                  { value: 'springs', label: 'Springs & Dampers' },
-                  { value: 'custodial', label: 'Custodial (janitor unit)' },
-                ]}
-              />
-              <Slider label="Max torque" unit=" Nm" min={0} max={100} step={5} value={torque} onChange={setTorque} />
-            </div>
-          </div>
+            <Entry
+              id="input"
+              name="Input"
+              use="Single-line text entry with label and hint. A normal controlled <input>."
+              quirk="Every character you type physically drops into the field from above. Shake the component hard enough and your text spills out letter by letter, clearing the field."
+            >
+              <div className="docs-demo-grid" key={`in-${inputMat}`}>
+                <Input
+                  label="Full name"
+                  value={name}
+                  onChange={setName}
+                  placeholder="e.g. R. Goldberg"
+                  hint="shake to empty"
+                  autoComplete="off"
+                  material={inputMat}
+                />
+              </div>
+              <MaterialPicker value={inputMat} onChange={setInputMat} />
+            </Entry>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">RadioGroup · Checkbox · Toggle</h3>
-            <p className="docs-p docs-p--sm">
-              Radio selection dot is a brass ball — ejects on deselect, catchable by empty dials. Checkbox
-              ticks pop out as debris. Toggle fires a lever-slam recoil and shockwave.
-            </p>
-            <div className="docs-bench-grid">
-              <RadioGroup name="shift" label="Shift — dot is a brass ball" value={shift} onChange={setShift}>
+            <Entry
+              id="select"
+              name="Select"
+              use="Choosing one option from a list. Proper listbox semantics, arrow keys, Escape."
+              quirk="The options panel is a hydraulic press: driven down on two pistons, it physically shoves the UI beneath it aside. Picking an option releases the pistons and the menu you no longer need falls out of the interface."
+            >
+              <div className="docs-demo-grid">
+                <Select
+                  label="Department"
+                  value={dept}
+                  onChange={setDept}
+                  placeholder="Assign me anywhere"
+                  options={[
+                    { value: 'ballistics', label: 'Ballistics' },
+                    { value: 'pendulums', label: 'Pendulums' },
+                    { value: 'springs', label: 'Springs & Dampers' },
+                  ]}
+                />
+              </div>
+            </Entry>
+
+            <Entry
+              id="slider"
+              name="Slider"
+              use="Picking a value in a range. role=slider, arrow keys, drag."
+              quirk="The thumb is a brass ball resting in the groove, and the groove obeys gravity. Knock the component and the ball sloshes; tilt it and your setting rolls downhill. Keep your UI level if you want your settings kept."
+            >
+              <div className="docs-demo-grid">
+                <Slider label="Max torque" unit=" Nm" min={0} max={100} step={5} value={torque} onChange={setTorque} />
+              </div>
+            </Entry>
+
+            <Entry
+              id="stepper"
+              name="Stepper"
+              use="Precise numeric input with increment/decrement. role=spinbutton."
+              quirk="The value bubble inflates with every increment and the gauge grows buoyant, straining against its bolts. Push past max and it bursts: bang, rubber scraps, value slams to min. onBurst is a real event in the API."
+            >
+              <div className="docs-demo-row">
+                <Stepper
+                  label="Tank pressure"
+                  unit="PSI"
+                  min={0}
+                  max={8}
+                  value={psi}
+                  onChange={setPsi}
+                  onBurst={() => toast('Pressure vessel failure. Refitting diaphragm.', 'warning')}
+                />
+              </div>
+            </Entry>
+
+            <Entry
+              id="checkbox"
+              name="Checkbox"
+              use="Independent boolean choices — consents, options, settings."
+              quirk="Checking stamps the tick in with a clunk. Unchecking pops it out: the tick tile goes flying and clatters around the page. Dropping something heavy on the box toggles it."
+            >
+              <div className="docs-demo-col" key={`cb-${checkMat}`}>
+                <Checkbox checked={terms} onChange={setTerms} material={checkMat}>
+                  I accept the terms while they are still attached
+                </Checkbox>
+                <Checkbox checked={goggles} onChange={setGoggles} material={checkMat}>
+                  Safety goggles fitted
+                </Checkbox>
+              </div>
+              <MaterialPicker value={checkMat} onChange={setCheckMat} />
+            </Entry>
+
+            <Entry
+              id="radio"
+              name="RadioGroup / Radio"
+              use="Choosing exactly one of a small set. Native radios underneath."
+              quirk="The selection dot is an actual brass ball. Change your choice and the old ball is ejected into the world. An empty dial is gently magnetic and catches any slow ball that rolls in — selecting that option. You can answer a form with a pinball."
+            >
+              <RadioGroup name="shift" label="Shift" value={shift} onChange={setShift}>
                 <Radio value="day">Day shift</Radio>
                 <Radio value="swing">Swing shift</Radio>
                 <Radio value="graveyard">Graveyard</Radio>
               </RadioGroup>
-              <div className="docs-checks">
-                <span className="tmbl-field-label">Certifications</span>
-                <Checkbox checked={union} onChange={setUnion}>Union member, Local 404</Checkbox>
-                <Checkbox checked={goggles} onChange={setGoggles}>Safety goggles fitted</Checkbox>
+            </Entry>
+
+            <Entry
+              id="toggle"
+              name="Toggle"
+              use="Instant on/off state. role=switch."
+              quirk="An industrial lever: flipping it recoils the whole switch and the clunk shoves whatever is nearby. Settings pages become contact sports."
+            >
+              <div className="docs-demo-col">
+                <Toggle checked={alerts} onChange={setAlerts}>
+                  Overpressure alerts
+                </Toggle>
               </div>
-            </div>
-          </div>
+            </Entry>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Button</h3>
-            <p className="docs-p docs-p--sm">
-              Steel. Shockwave on click shoves neighbours. Physically pressable by objects — anything
-              heavy landing on a button fires its <code className="docs-code-inline">onClick</code>. Hold the magnetic variant
-              to recall every loose metal part in the shop.
-            </p>
-            <div className="docs-button-row">
-              <Button
-                size="lg"
-                onClick={() => {
-                  setSubmitted(true);
-                  toast('Application received — lowering paperwork', 'success');
-                }}
-              >
-                Submit application
-              </Button>
-              <Button size="sm" variant="secondary" magnetic>
-                Recall parts (hold)
-              </Button>
-              <Button size="sm" variant="danger">Danger</Button>
-            </div>
-            <p className="docs-fine">Pressing Submit fires a toast and opens a Modal (lowered on ropes).</p>
-          </div>
-
-        </section>
-
-        <aside className="docs-side-col">
-          <Card title="Notice" material="glass">
-            <p className="docs-p docs-p--sm">
-              This card is <strong>glass</strong>. Take the steel slab you dropped on the Materials tab
-              and throw it here — it will shatter.
-            </p>
-          </Card>
-
-          <Card title="Operating tips" material="wood">
-            <ul className="docs-list docs-list--sm">
-              <li>Grab any component. Throw it.</li>
-              <li>Pull hard to shear a part off its mounts — one bolt left and it dangles like a broken shop sign.</li>
-              <li>Change a radio: the old ball drops. Roll it into another empty dial to select.</li>
-              <li>Drop something heavy on a Button to press it.</li>
-              <li>Shake a filled Input field to spill letters.</li>
-            </ul>
-          </Card>
-
-          <Card title="usePhysicsBody" material="steel">
-            <pre className="docs-pre docs-pre--sm"><code>{`usePhysicsBody<HTMLDivElement>({
-  kind: 'gauge',
-  material: 'brass',
-  mounts: 1,
-  mountBreakAt: 60,
-  onImpact: ({ speed }) =>
-    speed > 8 && alert('ouch'),
-})`}</code></pre>
-          </Card>
-        </aside>
-      </div>
-    </main>
-  );
-
-  /* ── Machinery ───────────────────────────────────────────────── */
-  const machinerySection = (
-    <main className="docs-content">
-      <div className="docs-two-col">
-        <section className="docs-main-col">
-
-          <div className="docs-section-header">
-            <span className="docs-tag">Machinery</span>
-            <h2 className="docs-h2">Machinery tier</h2>
-            <p className="docs-lead">
-              Openly mechanical, opt-in scenery. The Conveyor carries riders along the belt (click to
-              reverse). The Crane patrols its rail, lowers a claw, grabs the lowest-lying loose part and
-              files it in the bin.
-            </p>
-          </div>
-
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Stepper + ProgressBar</h3>
-            <p className="docs-p docs-p--sm">
-              Stepper inflates with every increment and <strong>bursts</strong> past max — scraps, bang,
-              value slams to min. ProgressBar fills with actual brass ball bearings; overflows at 100%;
-              tip it past ~25° and the whole quota spills.
-            </p>
-            <div className="docs-gauges">
-              <Stepper
-                label="Tank pressure"
-                unit="PSI"
-                min={0}
-                max={8}
-                value={psi}
-                onChange={setPsi}
-                onBurst={() => toast('Pressure vessel failure. Refitting diaphragm.', 'warning')}
-              />
-              <div className="docs-quota">
+            <Entry
+              id="progress"
+              name="ProgressBar"
+              use="Determinate progress. role=progressbar with proper aria values."
+              quirk="Filled with real ball bearings. At 100% it overflows — surplus dribbles over the brim onto the page (onOverflow fires). Tip it past ~25° and the entire quota spills; level it to recover."
+            >
+              <div className="docs-demo-col">
                 <ProgressBar
                   label="Daily quota"
                   value={quota}
                   max={100}
                   onOverflow={() => toast('Quota met. Surplus directed to floor.', 'success')}
                 />
-                <Button size="sm" variant="secondary" onClick={() => setQuota((q) => Math.min(100, q + 15))}>
-                  Log output +15%
+                <div className="docs-demo-row">
+                  <Button size="sm" variant="secondary" onClick={() => setQuota((q) => Math.min(100, q + 15))}>
+                    Log output +15%
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setQuota(0)}>
+                    Reset quota
+                  </Button>
+                </div>
+              </div>
+            </Entry>
+
+            <Entry
+              id="card"
+              name="Card"
+              use="Grouping content on a surface. The workhorse container."
+              quirk="Corner screws show its two mounting bolts — shear one and it hangs crooked. Material matters most here: steel cards are nearly immovable, paper cards drift when thrown, and glass cards shatter above their impact tolerance, showing a COMPONENT DAMAGED placard until repaired."
+            >
+              <div key={`card-${cardMat}`}>
+                <Card material={cardMat} title="Shipping note" className="docs-demo-card">
+                  <p className="docs-p docs-p--sm">
+                    This card is <strong>{cardMat}</strong>. Throw it. If it's glass, throw it
+                    harder. The REPAIR button appears in the wreckage — nothing here is
+                    permanently broken except the metaphor.
+                  </p>
+                </Card>
+              </div>
+              <MaterialPicker value={cardMat} onChange={setCardMat} />
+            </Entry>
+
+            <Entry
+              id="modal"
+              name="Modal"
+              use="Blocking dialogs. role=dialog, aria-modal, Escape to close."
+              quirk="Lowered from the ceiling on two ropes; it bounces and swings while you read. Closing it cuts the ropes — the panel tumbles down through your page on its way off the world. Elevation, resolved by gravity."
+            >
+              <div className="docs-demo-row">
+                <Button onClick={() => setModalOpen(true)}>Open dialog</Button>
+              </div>
+            </Entry>
+
+            <Entry
+              id="toast"
+              name="Toast / Toaster"
+              use="Transient notifications. aria-live region, sonner-style toast() API."
+              quirk="Toasts arrive normally: stacked, legible, on top. The physics is deferred — a toast only becomes a falling object when you dismiss it, or when a new arrival knocks the oldest off the full ledge. Dismissed notifications are litter."
+            >
+              <div className="docs-demo-row">
+                <Button size="sm" variant="secondary" onClick={() => toast('Part 24-B back in stock.')}>
+                  Info toast
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => toast('Weld inspection passed.', 'success')}>
+                  Success toast
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => toast('Bolt torque below spec.', 'warning')}>
+                  Warning toast
                 </Button>
               </div>
               <p className="docs-fine">
-                Past 8 PSI the stepper bursts. At 100% the bar overflows and spills ball bearings onto
-                the conveyor. The janitor crane will file them.
+                The ledge floats bottom-right and follows you. A production Toaster takes a{' '}
+                <code className="docs-code-inline">capacity</code> (default 3, oldest gets knocked
+                off) — this page sets it to Infinity, so notifications simply keep piling up until
+                you dismiss them or they bury the interface. Like real life.
               </p>
-            </div>
-          </div>
+            </Entry>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Vehicle Card</h3>
-            <p className="docs-p docs-p--sm">
-              With <code className="docs-code-inline">vehicle</code> prop, children bolt to the Card instead of the page: throw the
-              card and its controls ride along, or tear them off it one by one. PhysicsText words are set in
-              weak letterpress glue.
-            </p>
-            <Card title="Terms & conditions" material="wood" vehicle className="docs-terms">
-              <PhysicsText as="p" setting="loose" className="docs-terms-text">
-                The undersigned operator agrees that all interface components are supplied with mass,
-                momentum and a two-bolt mounting warranty which is void the moment anybody touches
-                anything. Words in this agreement are set in weak letterpress glue and constitute
-                load bearing typography.
+            <Entry
+              id="tabs"
+              name="Tabs"
+              use="Sectioning content. role=tablist with arrow-key roving focus."
+              quirk="Deliberately none. Tabs are wayfinding — the one part of the machine bolted directly to the building. The incoming panel settles with a small mechanical drop, and that is the entire concession. Every shop needs a fire exit."
+            >
+              <Tabs
+                label="Part record"
+                value={demoTab}
+                onChange={setDemoTab}
+                className="docs-demo-tabs"
+                tabs={[
+                  {
+                    id: 'spec',
+                    label: 'Specification',
+                    content: <p className="docs-p docs-p--sm docs-tabpanel">Flange, brass, 40mm. Torque to 12 Nm. Do not lick.</p>,
+                  },
+                  {
+                    id: 'history',
+                    label: 'History',
+                    content: <p className="docs-p docs-p--sm docs-tabpanel">Installed 2024. Thrown 2024. Reinstalled 2024.</p>,
+                  },
+                  {
+                    id: 'notes',
+                    label: 'Notes',
+                    content: <p className="docs-p docs-p--sm docs-tabpanel">The tabs you are clicking do not move. Treasure this.</p>,
+                  },
+                ]}
+              />
+            </Entry>
+
+            <Entry
+              id="text"
+              name="PhysicsText"
+              use="Headings and copy — renders as h1–h3, p, span or label."
+              quirk="Every word is its own rigid body, set in weak letterpress glue. Loose setting scatters at a touch; the trailing full stop of a heading can be a rubber ball. The hero at the top of this page is one."
+            >
+              <PhysicsText as="p" setting="loose" className="docs-demo-loosetext">
+                All typography in this system is load bearing and the warranty is void the moment
+                anybody touches anything.
               </PhysicsText>
-              <Checkbox
-                checked={terms}
-                onChange={(v) => {
-                  setTerms(v);
-                  if (v) toast('Terms accepted. Legally binding, allegedly.', 'info');
-                }}
-              >
-                I read the above while it was still attached
-              </Checkbox>
-            </Card>
-          </div>
+            </Entry>
+          </section>
 
-          <div className="docs-comp-group">
-            <h3 className="docs-h3">Shipping Crate</h3>
-            <Card title="Shipping crate" material="wood" vehicle className="docs-crate">
-              <p className="docs-fine docs-fine--card">VEHICLE — drag the crate and everything rides along. Tear controls off it one by one.</p>
-              <div className="docs-crate-row">
-                <Checkbox checked={crateFragile} onChange={setCrateFragile}>Fragile</Checkbox>
-                <Checkbox checked={crateUpright} onChange={setCrateUpright}>This way up</Checkbox>
-                <Button size="sm" variant="secondary" onClick={() => {}}>Inspect</Button>
-              </div>
-            </Card>
-          </div>
-
-        </section>
-
-        <aside className="docs-side-col">
-          <div className="docs-crane-zone">
-            <Crane auto dropAt={0.07} />
-            <div className="docs-crane-floor">
-              <PartsBin label="Scrap" />
-              <span className="docs-fine">
-                The janitor grabs whatever is lying around and files it in the bin. Drop a part to
-                give it something to do.
-              </span>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </main>
-  );
-
-  /* ── Shell ───────────────────────────────────────────────────── */
-  return (
-    <>
-      <div className="shop-blueprint" aria-hidden="true" />
-
-      <header className="docs-header">
-        <div className="docs-brand">
-          <h1 className="docs-logo">
-            TUMBLE<span className="docs-logo__reg">®</span>
-          </h1>
-          <span className="docs-badge">docs</span>
-        </div>
-        <div className="docs-header-controls">
-          <Toggle checked={zeroG} onChange={(v) => { setZeroG(v); setGravity(v ? 0.05 : 1); }}>
-            Zero-G
-          </Toggle>
-          <Toggle checked={soundOn} onChange={setSound}>
-            Sound
-          </Toggle>
-          <Button variant="secondary" size="sm" onClick={dropPart}>
-            Drop part
-          </Button>
-          <PhysicsExempt>
-            <Button variant="danger" size="sm" onClick={resetMachine}>
-              Reset
-            </Button>
-          </PhysicsExempt>
-        </div>
-        <div className="shop-toaster">
-          <Toaster />
-        </div>
-      </header>
-
-      <Tabs
-        label="Documentation"
-        className="docs-tabs"
-        value={tab}
-        onChange={(id) => setTab(id as DocTab)}
-        tabs={[
-          { id: 'getting-started', label: 'Getting Started', content: gettingStartedSection },
-          { id: 'materials',       label: 'Materials',        content: materialsSection },
-          { id: 'components',      label: 'Components',       content: componentsSection },
-          { id: 'machinery',       label: 'Machinery',        content: machinerySection },
-        ]}
-      />
-
-      <div className="shop-belt">
-        <Conveyor speed={3.2} />
+          <footer className="docs-footer" aria-hidden="true">
+            <span>R.G. TUMBLE &amp; SONS · PRECISION INTERFACE WORKS · EST. 2026</span>
+            <span>TOLERANCES ±90PX · ALL PARTS DRAGGABLE · NO WARRANTY EXPRESS OR IMPLIED</span>
+          </footer>
+        </main>
       </div>
 
-      <footer className="shop-footer" aria-hidden="true">
-        <span>R.G. TUMBLE &amp; SONS · PRECISION INTERFACE WORKS · EST. 2026</span>
-        <span>TOLERANCES ±90PX · ALL PARTS DRAGGABLE · NO WARRANTY EXPRESS OR IMPLIED</span>
-      </footer>
-
-      <Modal open={submitted} onClose={() => setSubmitted(false)} title="Application received">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Confirm shipment">
         <p>
-          Thank you, <strong>{name.trim() || 'unnamed operator'}</strong>. Your paperwork has been
-          lowered into the machine for processing{shift ? ` on the ${shift} shift` : ''}.
+          Ship <strong>{name.trim() || 'the unnamed crate'}</strong>
+          {dept ? ` to ${dept}` : ''}? This dialog is currently suspended over your page on two
+          ropes. Reading it makes them no stronger.
         </p>
-        <p className="docs-fine">
-          Dismissing this dialog cuts the ropes. The panel will fall through your form. This is
-          considered normal operation.
-        </p>
+        <p className="docs-fine">Dismissing cuts the ropes. This is considered normal operation.</p>
         <div className="docs-modal-actions">
-          <Button variant="secondary" onClick={() => setSubmitted(false)}>
+          <Button variant="secondary" onClick={() => setModalOpen(false)}>
             Jolly good
           </Button>
         </div>
       </Modal>
-    </>
+    </div>
   );
 }
+
+const MATERIAL_COPY: Record<MaterialName, string> = {
+  steel: 'Dense, dead drop, barely bounces. Buttons and toggles default to steel — actions should land with authority.',
+  wood: 'The workshop default. Solid but not heavy; a satisfying knock on impact. If you don’t specify a material, you get wood.',
+  rubber: 'The superball. Restitution 0.92 is nearly perfectly elastic — throw this card at the floor and step back. Steppers are rubber; that’s why they burst.',
+  brass: 'Heavy and ringy. Radio selection balls and progress bearings are brass. Dings on impact.',
+  glass: 'Brittle. Above its impact tolerance it shatters into shards and shows a damage placard until repaired. For content that deserves respect.',
+  paper: 'Near-weightless with high air drag — drifts when thrown instead of falling. PhysicsText words and toasts are paper.',
+};

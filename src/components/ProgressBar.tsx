@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { relativeRect } from '../physics/geometry';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface ProgressBarProps {
@@ -11,6 +12,8 @@ export interface ProgressBarProps {
   max?: number;
   /** Fired once when the bar reaches 100%. */
   onOverflow?: () => void;
+  /** What the trough is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 const BALL = 12; // px, matches .tmbl-progress__ball
@@ -23,7 +26,7 @@ const BALL = 12; // px, matches .tmbl-progress__ball
  * entire quota spills onto the floor; it refills when you level it again.
  * Progress, like everything else here, must be kept level to be retained.
  */
-export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBarProps) {
+export function ProgressBar({ label, value, max = 100, onOverflow, material = 'wood' }: ProgressBarProps) {
   const { spawnLoose, containerRef, onMachineReset } = useWorld();
   const trackRef = useRef<HTMLDivElement>(null);
   const [spilled, setSpilled] = useState(false);
@@ -44,7 +47,7 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
 
   const { ref, entry } = usePhysicsBody<HTMLDivElement>({
     kind: 'progress',
-    material: 'wood',
+    material,
     mountBreakAt: 100,
     hitboxRef: trackRef,
   });
@@ -138,6 +141,7 @@ export function ProgressBar({ label, value, max = 100, onOverflow }: ProgressBar
       className="tmbl-progress"
       data-full={full || undefined}
       data-spilled={spilled || undefined}
+      data-material={material}
     >
       <div className="tmbl-progress__head">
         <span className="tmbl-field-label">{label}</span>

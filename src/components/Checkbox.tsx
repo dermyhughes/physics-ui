@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { relativeRect } from '../physics/geometry';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface CheckboxProps {
@@ -9,6 +10,8 @@ export interface CheckboxProps {
   onChange: (checked: boolean) => void;
   children: ReactNode;
   disabled?: boolean;
+  /** What the part is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -18,14 +21,14 @@ export interface CheckboxProps {
  * little tick tile goes flying and clatters around the machine. Dropping
  * something heavy on the checkbox toggles it (industrial-grade input).
  */
-export function Checkbox({ checked, onChange, children, disabled }: CheckboxProps) {
+export function Checkbox({ checked, onChange, children, disabled, material = 'wood' }: CheckboxProps) {
   const { spawnLoose, containerRef } = useWorld();
   const boxRef = useRef<HTMLSpanElement>(null);
   const lastToggle = useRef(0);
 
   const { ref, impulse } = usePhysicsBody<HTMLLabelElement>({
     kind: 'checkbox',
-    material: 'wood',
+    material,
     mountBreakAt: 80,
     onImpact: (info) => {
       // Heavy object lands on it → toggles. (Rate-limited so it doesn't buzz.)
@@ -67,7 +70,7 @@ export function Checkbox({ checked, onChange, children, disabled }: CheckboxProp
   };
 
   return (
-    <label ref={ref} className="tmbl-checkbox" data-checked={checked || undefined}>
+    <label ref={ref} className="tmbl-checkbox" data-checked={checked || undefined} data-material={material}>
       <input
         type="checkbox"
         className="tmbl-sr-only"

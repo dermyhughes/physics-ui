@@ -9,12 +9,14 @@ import {
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { relativeCenter } from '../physics/geometry';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 interface RadioGroupCtx {
   name: string;
   value: string | null;
   setValue: (v: string) => void;
+  material: MaterialName;
 }
 
 const GroupCtx = createContext<RadioGroupCtx | null>(null);
@@ -26,6 +28,8 @@ export interface RadioGroupProps {
   label?: string;
   children: ReactNode;
   className?: string;
+  /** What each dial is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -36,9 +40,9 @@ export interface RadioGroupProps {
  * loose ball that comes to rest in an empty radio dial is caught and SELECTS
  * that option. Yes, you can make a selection by throwing the ball.
  */
-export function RadioGroup({ name, value, onChange, label, children, className }: RadioGroupProps) {
+export function RadioGroup({ name, value, onChange, label, children, className, material = 'wood' }: RadioGroupProps) {
   return (
-    <GroupCtx.Provider value={{ name, value, setValue: onChange }}>
+    <GroupCtx.Provider value={{ name, value, setValue: onChange, material }}>
       <div role="radiogroup" aria-label={label} className={`tmbl-radiogroup ${className ?? ''}`}>
         {label && <span className="tmbl-field-label">{label}</span>}
         {children}
@@ -67,7 +71,7 @@ export function Radio({ value, children, disabled }: RadioProps) {
 
   const { ref } = usePhysicsBody<HTMLLabelElement>({
     kind: 'radio',
-    material: 'wood',
+    material: group.material,
     mountBreakAt: 80,
   });
 
@@ -138,7 +142,7 @@ export function Radio({ value, children, disabled }: RadioProps) {
   });
 
   return (
-    <label ref={ref} className="tmbl-radio" data-checked={checked || undefined}>
+    <label ref={ref} className="tmbl-radio" data-checked={checked || undefined} data-material={group.material}>
       <input
         type="radio"
         className="tmbl-sr-only"

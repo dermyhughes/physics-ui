@@ -3,9 +3,19 @@
    A design system with consequences.
    ============================================================
    Naming: --tmbl-{category}-{name}[-{state}]
+
+   Three layers:
+     1. Primitives  — the raw palette (theme-dependent scales).
+     2. Semantic    — what a color MEANS (bg, surface, text, action…).
+     3. Material    — what a part is STAMPED FROM. Where Material
+        Design derives elevation from paper under light, TUMBLE
+        derives it from mass under gravity. Set data-material on a
+        component and both its physics and its finish change.
    ============================================================ */
 
 :root {
+  color-scheme: light;
+
   /* ---- Color: primitives (the machine shop) ---- */
   --tmbl-paper-050: #faf6ec;
   --tmbl-paper-100: #f3ebdd;
@@ -23,6 +33,9 @@
   --tmbl-blueprint-500: #2b5bb7; /* drafting ink — focus, links, grid */
   --tmbl-verdigris-500: #3f8f6b; /* oxidised copper — success */
   --tmbl-danger-500: #c22f2f; /* warning placard red */
+
+  /* Shadows are cast by mass, not by theme: always dark. */
+  --tmbl-shade: #17140e;
 
   /* ---- Color: semantic ---- */
   --tmbl-color-bg: var(--tmbl-paper-100);
@@ -68,9 +81,9 @@
   --tmbl-border-w: 2px;
 
   /* ---- Elevation (hard drafting-table shadows, no blur haze) ---- */
-  --tmbl-shadow-rest: 0 2px 0 var(--tmbl-color-line-soft);
-  --tmbl-shadow-raised: 0 4px 0 color-mix(in srgb, var(--tmbl-ink-900) 30%, transparent);
-  --tmbl-shadow-flying: 0 14px 24px -8px color-mix(in srgb, var(--tmbl-ink-900) 45%, transparent);
+  --tmbl-shadow-rest: 0 2px 0 color-mix(in srgb, var(--tmbl-shade) 22%, transparent);
+  --tmbl-shadow-raised: 0 4px 0 color-mix(in srgb, var(--tmbl-shade) 30%, transparent);
+  --tmbl-shadow-flying: 0 14px 24px -8px color-mix(in srgb, var(--tmbl-shade) 45%, transparent);
 
   /* ---- Motion ---- */
   --tmbl-ease-clunk: cubic-bezier(0.22, 1.4, 0.36, 1);
@@ -81,4 +94,70 @@
   --tmbl-z-loose: 60; /* parts that have been ripped free */
   --tmbl-z-drag: 80;
   --tmbl-z-overlay: 100;
+}
+
+/* ============================================================
+   Dark theme — the night shift.
+   The paper/ink scales swap roles; accents stay on shift.
+   Set data-theme="dark" on <html>. (The demo initialises it from
+   prefers-color-scheme; library consumers own the attribute.)
+   ============================================================ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --tmbl-paper-050: #2d2920; /* highest surface */
+  --tmbl-paper-100: #211e16; /* page */
+  --tmbl-paper-200: #1a1712; /* recessed wells, tracks */
+  --tmbl-paper-300: #13110c; /* deepest recess */
+  --tmbl-ink-900: #f0e9d8;
+  --tmbl-ink-700: #d8cdb4;
+  --tmbl-ink-500: #a2977f;
+  --tmbl-ink-300: #6f6653;
+
+  --tmbl-orange-100: #4b2416; /* hover wash, now a deep rust */
+  --tmbl-blueprint-500: #6b93e8; /* focus needs more light at night */
+  --tmbl-verdigris-500: #58ab86;
+
+  --tmbl-color-surface-raised: #353024;
+  --tmbl-color-action-contrast: #fff6ec;
+}
+
+/* ============================================================
+   Material finishes.
+   Every component takes a `material` prop; it lands on the DOM as
+   data-material and drives both the physics (materials.ts) and
+   this finish layer. The tint mixes into the theme surface, so a
+   brass checkbox is brassy in both light and dark.
+   ============================================================ */
+[data-material='steel']  { --tmbl-mat-tint: #8d99a6; --tmbl-mat-strength: 22%; }
+[data-material='wood']   { --tmbl-mat-tint: #c69a52; --tmbl-mat-strength: 20%; }
+[data-material='rubber'] { --tmbl-mat-tint: #e8542f; --tmbl-mat-strength: 14%; }
+[data-material='brass']  { --tmbl-mat-tint: #d9a441; --tmbl-mat-strength: 26%; }
+[data-material='glass']  { --tmbl-mat-tint: #7fb2d4; --tmbl-mat-strength: 24%; }
+[data-material='paper']  { --tmbl-mat-tint: #ffffff; --tmbl-mat-strength: 30%; }
+
+[data-material] {
+  --tmbl-mat-surface: color-mix(
+    in srgb,
+    var(--tmbl-mat-tint) var(--tmbl-mat-strength, 16%),
+    var(--tmbl-color-surface)
+  );
+  --tmbl-mat-surface-raised: color-mix(
+    in srgb,
+    var(--tmbl-mat-tint) calc(var(--tmbl-mat-strength, 16%) / 2),
+    var(--tmbl-color-surface-raised)
+  );
+}
+
+/* Motion respects the vestibular system even when nothing else here
+   respects anything. Physics transforms are user-initiated (you threw
+   it); ambient CSS animation is not. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

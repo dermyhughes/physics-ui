@@ -3,11 +3,14 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode 
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { applyMagnetism } from '../physics/magnetism';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'ref'> {
   variant?: 'primary' | 'secondary' | 'danger';
   size?: 'sm' | 'md' | 'lg';
+  /** What the part is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
   /**
    * Electromagnet mode: while the button is held down it attracts every
    * loose ferrous part in reach — bulk-collect as a press-and-hold. Release
@@ -29,6 +32,7 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 export function Button({
   variant = 'primary',
   size = 'md',
+  material = 'steel',
   magnetic,
   children,
   onClick,
@@ -43,7 +47,7 @@ export function Button({
 
   const { ref, impulse, shockwave, entry } = usePhysicsBody<HTMLButtonElement>({
     kind: 'button',
-    material: 'steel',
+    material,
     weight: 1.4,
     onMountsChange: setMounts,
     onImpact: (info) => {
@@ -102,6 +106,7 @@ export function Button({
       className={`tmbl-button ${className ?? ''}`}
       data-variant={variant}
       data-size={size}
+      data-material={material}
       data-pressed={pressed || undefined}
       data-mounts={mounts}
       data-magnet={(magnetic && fieldOn) || undefined}

@@ -2,6 +2,7 @@ import { useRef, type InputHTMLAttributes } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
 import { relativeRect } from '../physics/geometry';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface InputProps
@@ -10,6 +11,8 @@ export interface InputProps
   value: string;
   onChange: (value: string) => void;
   hint?: string;
+  /** What the part is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -18,14 +21,14 @@ export interface InputProps
  * the field hard enough — or throw it — and it SPILLS: your text tumbles out
  * letter by letter and the field is cleared.
  */
-export function Input({ label, value, onChange, hint, className, ...rest }: InputProps) {
+export function Input({ label, value, onChange, hint, className, material = 'wood', ...rest }: InputProps) {
   const { spawnLoose, containerRef } = useWorld();
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSpill = useRef(0);
 
   const { ref, entry } = usePhysicsBody<HTMLDivElement>({
     kind: 'input',
-    material: 'wood',
+    material,
     mountBreakAt: 110,
     // Collide as the field itself — the label above it is not a wall.
     hitboxRef: inputRef,
@@ -96,7 +99,7 @@ export function Input({ label, value, onChange, hint, className, ...rest }: Inpu
   });
 
   return (
-    <div ref={ref} className={`tmbl-input ${className ?? ''}`}>
+    <div ref={ref} className={`tmbl-input ${className ?? ''}`} data-material={material}>
       <label className="tmbl-field-label" htmlFor={rest.id ?? `tmbl-in-${label}`}>
         {label}
       </label>

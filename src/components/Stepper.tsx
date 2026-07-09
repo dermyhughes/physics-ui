@@ -2,6 +2,7 @@ import Matter from 'matter-js';
 import { useRef, useState } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface StepperProps {
@@ -14,6 +15,8 @@ export interface StepperProps {
   unit?: string;
   /** Fired when the gauge is pushed past max (or hit too hard) and bursts. */
   onBurst?: () => void;
+  /** What the gauge is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -25,7 +28,7 @@ export interface StepperProps {
  *
  * Deflating is politely uneventful, like letting air out of anything.
  */
-export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, unit, onBurst }: StepperProps) {
+export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, unit, onBurst, material = 'rubber' }: StepperProps) {
   const [burst, setBurst] = useState(false);
   const { spawnLoose, engine } = useWorld();
   const burstTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -39,7 +42,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, u
 
   const { ref, entry, impulse, shockwave } = usePhysicsBody<HTMLDivElement>({
     kind: 'stepper',
-    material: 'rubber',
+    material,
     mountBreakAt: 120,
     hitboxRef: rowRef,
     onImpact: (info) => {
@@ -116,7 +119,7 @@ export function Stepper({ label, value, onChange, min = 0, max = 10, step = 1, u
   });
 
   return (
-    <div ref={ref} className="tmbl-stepper" data-burst={burst || undefined}>
+    <div ref={ref} className="tmbl-stepper" data-burst={burst || undefined} data-material={material}>
       <span className="tmbl-field-label">{label}</span>
       <div ref={rowRef} className="tmbl-stepper__row">
         <button

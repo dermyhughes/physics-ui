@@ -9,7 +9,7 @@ import {
   type LooseSpec,
 } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
-import { CATEGORY } from '../physics/materials';
+import { CATEGORY, type MaterialName } from '../physics/materials';
 import { nextId } from '../physics/ids';
 import { playEffect } from '../physics/sound';
 
@@ -24,6 +24,8 @@ export interface SelectProps {
   onChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
+  /** What the trigger is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -35,12 +37,12 @@ export interface SelectProps {
  * longer need drops out of the interface. Drag the trigger while it's open
  * and the menu swings along beneath it.
  */
-export function Select({ label, value, onChange, options, placeholder = 'Choose…' }: SelectProps) {
+export function Select({ label, value, onChange, options, placeholder = 'Choose…', material = 'wood' }: SelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const { ref, entry } = usePhysicsBody<HTMLDivElement>({
     kind: 'select',
-    material: 'wood',
+    material,
     mountBreakAt: 100,
     // Collide as the trigger box only, not the label above it.
     hitboxRef: triggerRef,
@@ -49,7 +51,7 @@ export function Select({ label, value, onChange, options, placeholder = 'Choose�
   const current = options.find((o) => o.value === value);
 
   return (
-    <div ref={ref} className="tmbl-select" data-open={open || undefined}>
+    <div ref={ref} className="tmbl-select" data-open={open || undefined} data-material={material}>
       <span className="tmbl-field-label">{label}</span>
       <button
         ref={triggerRef}

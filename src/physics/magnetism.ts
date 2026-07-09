@@ -2,7 +2,7 @@ import Matter from 'matter-js';
 import type { BodyEntry, Vec } from './PhysicsWorld';
 
 const FERROUS = new Set(['steel', 'brass']);
-const IGNORED_KINDS = new Set(['claw', 'modal', 'toast', 'select-panel']);
+const IGNORED_KINDS = new Set(['modal', 'toast', 'select-panel']);
 
 /**
  * One tick of electromagnetism: pull every loose ferrous part within reach

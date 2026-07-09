@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useWorld } from '../physics/PhysicsWorld';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import type { MaterialName } from '../physics/materials';
 import { playImpact } from '../physics/sound';
 
 export interface SliderProps {
@@ -11,6 +12,8 @@ export interface SliderProps {
   max?: number;
   step?: number;
   unit?: string;
+  /** What the groove is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
@@ -23,7 +26,7 @@ export interface SliderProps {
  * quietly pegs itself to whichever end points at the floor. Level your UI if
  * you want your settings to stay put.
  */
-export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, unit }: SliderProps) {
+export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, unit, material = 'wood' }: SliderProps) {
   const { engine, containerRef } = useWorld();
   const trackRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLSpanElement>(null);
@@ -41,7 +44,7 @@ export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, u
 
   const { ref, entry } = usePhysicsBody<HTMLDivElement>({
     kind: 'slider',
-    material: 'wood',
+    material,
     mountBreakAt: 100,
     // The groove is the part; the label floats above it.
     hitboxRef: trackRef,
@@ -151,7 +154,7 @@ export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, u
   };
 
   return (
-    <div ref={ref} className="tmbl-slider">
+    <div ref={ref} className="tmbl-slider" data-material={material}>
       <div className="tmbl-slider__head">
         <span className="tmbl-field-label">{label}</span>
         <span className="tmbl-slider__value">

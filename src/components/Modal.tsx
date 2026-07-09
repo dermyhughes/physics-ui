@@ -9,6 +9,7 @@ import {
   type LooseSpec,
 } from '../physics/PhysicsWorld';
 import { nextId } from '../physics/ids';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface ModalProps {
@@ -16,6 +17,8 @@ export interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** What the panel is stamped from — sets how it swings and how it falls. */
+  material?: MaterialName;
 }
 
 /**
@@ -29,7 +32,7 @@ export function Modal(props: ModalProps) {
   return <ModalInner {...props} />;
 }
 
-function ModalInner({ onClose, title, children }: ModalProps) {
+function ModalInner({ onClose, title, children, material = 'wood' }: ModalProps) {
   const { containerRef, registerLooseEl, registry, engine, getBounds } = useWorld();
   const panelRef = useRef<HTMLDivElement>(null);
   const lineA = useRef<SVGPathElement>(null);
@@ -53,19 +56,19 @@ function ModalInner({ onClose, title, children }: ModalProps) {
     const pw = el.offsetWidth;
     const ph = el.offsetHeight;
     const spawnX = w / 2;
-    const spawnY = viewTop - ph / 2 - 50;
+    const spawnY = viewTop - ph / 2 - 10;
     el.style.transform = `translate(${spawnX - pw / 2}px, ${spawnY - ph / 2}px)`;
 
     const spec: LooseSpec = {
       id: nextId('modal'),
       kind: 'modal',
-      material: 'wood',
+      material,
       shape: 'rect',
       w: pw,
       h: ph,
       x: spawnX,
       y: spawnY,
-      vy: 7,
+      vy: 14,
       // Own layer: the drop-in never clips the header on its way down. It
       // can still catch a dismissed toast on its roof.
       overlay: true,
@@ -134,15 +137,18 @@ function ModalInner({ onClose, title, children }: ModalProps) {
       const attach = Matter.Vector.add(entry.body.position, c.pointB as Matter.Vector);
       const a = c.pointA as Matter.Vector;
       const dist = Math.hypot(attach.x - a.x, attach.y - a.y);
-      // Winch in toward the hang length.
+      // Winch in toward the hang length. Fast: a dialog is a request for
+      // attention, not a ceremony.
       const target = (c as any).plugin?.targetLen ?? c.length;
-      if (c.length > target) c.length = Math.max(target, c.length - 10);
+      if (c.length > target) c.length = Math.max(target, c.length - 24);
       // Rope, not rod: pull-only, with give proportional to the violation so
-      // the catch is a soft snub rather than a yank. Damping only while taut —
-      // Matter applies it even at zero stiffness, which brakes free-fall.
+      // the catch is a snub rather than a yank. Firm ramp — too soft and the
+      // panel sags into place in slow motion instead of arriving. Damping only
+      // while taut — Matter applies it even at zero stiffness, which brakes
+      // free-fall.
       const violation = dist - c.length;
-      c.stiffness = violation > 0 ? Math.min(0.5, 0.05 + violation * 0.02) : 0.0005;
-      c.damping = violation > 0 ? 0.08 : 0;
+      c.stiffness = violation > 0 ? Math.min(0.9, 0.2 + violation * 0.08) : 0.0005;
+      c.damping = violation > 0 ? 0.12 : 0;
       if (!line) return;
       // Sag grows with slack; a taut rope keeps a hint of droop.
       const sag = Math.min(90, Math.max(0, c.length - dist)) * 0.6 + 5;
@@ -186,6 +192,7 @@ function ModalInner({ onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-material={material}
       >
         <header className="tmbl-modal__title">
           <span>{title}</span>

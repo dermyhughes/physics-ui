@@ -505,31 +505,6 @@ export function PhysicsWorld({
           b.force.x -= b.mass * g.x * g.scale;
         }
       });
-
-      // Conveyor belts drag whatever rests on them.
-      const pairs = engine.pairs.list as Matter.Pair[];
-      for (const pair of pairs) {
-        if (!pair.isActive) continue;
-        for (const [belt, rider] of [
-          [pair.bodyA, pair.bodyB],
-          [pair.bodyB, pair.bodyA],
-        ] as const) {
-          const speed = (belt.plugin as any)?.tumbleConveyor;
-          // The crane's claw hovers over the belt constantly — dragging it
-          // along would fly the crane like a kite.
-          if (
-            typeof speed === 'number' &&
-            !rider.isStatic &&
-            rider.label !== 'claw'
-          ) {
-            Matter.Sleeping.set(rider, false);
-            Matter.Body.setVelocity(rider, {
-              x: rider.velocity.x + (speed - rider.velocity.x) * 0.12,
-              y: rider.velocity.y,
-            });
-          }
-        }
-      }
     };
     Matter.Events.on(engine, 'beforeUpdate', before);
     return () => Matter.Events.off(engine, 'beforeUpdate', before);

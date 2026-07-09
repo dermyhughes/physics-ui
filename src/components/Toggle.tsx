@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { usePhysicsBody } from '../physics/usePhysicsBody';
+import type { MaterialName } from '../physics/materials';
 import { playEffect } from '../physics/sound';
 
 export interface ToggleProps {
@@ -7,16 +8,18 @@ export interface ToggleProps {
   onChange: (checked: boolean) => void;
   children?: ReactNode;
   disabled?: boolean;
+  /** What the part is stamped from — sets weight, bounce and impact voice. */
+  material?: MaterialName;
 }
 
 /**
  * An industrial lever switch. Flipping it is a violent mechanical event:
  * the whole switch recoils and anything nearby gets shoved by the CLUNK.
  */
-export function Toggle({ checked, onChange, children, disabled }: ToggleProps) {
+export function Toggle({ checked, onChange, children, disabled, material = 'steel' }: ToggleProps) {
   const { ref, impulse, shockwave } = usePhysicsBody<HTMLLabelElement>({
     kind: 'toggle',
-    material: 'steel',
+    material,
     weight: 1.2,
     mountBreakAt: 100,
   });
@@ -30,7 +33,7 @@ export function Toggle({ checked, onChange, children, disabled }: ToggleProps) {
   };
 
   return (
-    <label ref={ref} className="tmbl-toggle" data-checked={checked || undefined}>
+    <label ref={ref} className="tmbl-toggle" data-checked={checked || undefined} data-material={material}>
       <input
         type="checkbox"
         role="switch"
